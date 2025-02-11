@@ -1,0 +1,16 @@
+[project]
+name = "ydb-backend"
+version = "0.0.0"
+description = "This project aims to implement a Django backend for YDB (Yandex Database), enabling seamless integration of YDB as a database backend for Django applications. YDB is a distributed, fault-tolerant, and scalable database system developed by Yandex, designed to handle large volumes of data with high availability and low latency."
+authors = [
+    {name = "Mirzofirdavs",email = "mirzofirdavs@github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10, <4"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
