@@ -1,13 +1,14 @@
 [project]
 name = "django-ydb-backend"
-version = "0.0.0"
+version = "0.1.0"
 description = "Django backend for YDB"
 authors = [
-    {name = "Mirzofirdavs",email = "mirzofirdavs@github.com"}
+    {name = "Mirzofirdavs", email = "mirzofirdavs@github.com"},
 ]
 readme = "README.md"
-requires-python = ">=3.8, <4"
+requires-python = ">=3.8,<4"
 dependencies = [
+    "ydb-dbapi (>=0.1.7,<0.2.0)",
 ]
 
 [tool.poetry]
@@ -19,3 +20,8 @@ packages = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [
+    { include = "ydb_backend" },
+]
