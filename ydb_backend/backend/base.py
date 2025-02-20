@@ -1,13 +1,6 @@
 from django.db.backends.base.base import BaseDatabaseWrapper, logger
 from django.core.exceptions import ImproperlyConfigured
 from django.db.utils import DatabaseError, OperationalError, ProgrammingError
-# dbapi - connect
-# тесты рабочие написать
-# simpletestcase
-# поетри билд научится пока что не собирается, должно быть два файлик в папочке dist
-# как тестировать эти компоненты на уровне джанго
-# поизучай доккер когда нибудь если д оживешь
-
 
 try:
     import ydb.dbapi as Database
