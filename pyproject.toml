@@ -1,6 +1,6 @@
 [project]
 name = "django-ydb-backend"
-version = "0.1.0"
+version = "0.0.0"
 description = "Django backend for YDB"
 authors = [
     {name = "Mirzofirdavs", email = "mirzofirdavs@github.com"},
