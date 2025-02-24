@@ -3,7 +3,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.utils import DatabaseError, OperationalError, ProgrammingError
 
 try:
-    import ydb.dbapi as Database
+    import ydb_dbapi as Database
 except ImportError:
     Database = None
 
@@ -18,10 +18,12 @@ def ydb_version():
     return 0, 0, 0
 
 
-if ydb_version() < (2, 0, 0):
+if ydb_version() < (0, 0, 31):
     raise ImproperlyConfigured(
-        f"ydb version 2.0.0 or newer is required; you have {Database.version}"
+        f"ydb version 0.0.31 or newer is required; you have {Database.version}"
     )
+
+# мне кажется что тут он возвращает версию dbapi, а не ydb
 
 from .client import DatabaseClient  # NOQA
 from .creation import DatabaseCreation  # NOQA
