@@ -11,19 +11,17 @@ if Database is None:
     raise ImproperlyConfigured("Error loading ydb module. Install it using 'pip install ydb'.")
 
 
-def ydb_version():
+def db_api_version():
     if hasattr(Database, 'version'):
-        version = Database.version.split(".")
+        version = Database.version.VERSION.split(".")
         return tuple(map(int, version))
     return 0, 0, 0
 
 
-if ydb_version() < (0, 0, 31):
-    raise ImproperlyConfigured(
-        f"ydb version 0.0.31 or newer is required; you have {Database.version}"
-    )
-
-# мне кажется что тут он возвращает версию dbapi, а не ydb
+# if db_api_version() < (0, 0, 31):
+#    raise ImproperlyConfigured(
+#        f"ydb version 0.0.31 or newer is required; you have {Database.version}"
+#    )
 
 from .client import DatabaseClient  # NOQA
 from .creation import DatabaseCreation  # NOQA
@@ -128,13 +126,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         E.g. for ydb_version "23.4.11", return (23, 4, 11).
         """
         try:
-            with self.cursor() as cursor:
+            with self.connection.cursor() as cursor:
                 cursor.execute("SELECT version()")
                 row = cursor.fetchone()
                 return row[0] if row else None
         except (OperationalError, ProgrammingError) as e:
             logger.warning(f"Failed to get database version: {e}. Falling back to driver version.")
-            return ydb_version()
+            return db_api_version()
         except DatabaseError as e:
             logger.error(f"Database error while getting version: {e}")
             raise
@@ -169,9 +167,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_new_connection(self, conn_params):
         try:
             logger.debug(f"Connecting to YDB with params: {conn_params}")
-            driver = Database.connect(**conn_params)
+            connection = Database.connect(**conn_params)
             logger.info("Successfully connected to YDB.")
-            return driver
+            return connection
         except Exception as e:
             logger.error(f"Failed to connect to YDB: {e}")
             raise OperationalError(f"Failed to connect to YDB: {e}")
@@ -187,7 +185,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return False
         try:
             session = self.connection.cursor()
-            session.execute("SELECT 1", commit_tx=True)
+            session.execute("SELECT 1")
             return True
         except Exception as e:
             logger.warning(f"Connection is not usable: {e}")
