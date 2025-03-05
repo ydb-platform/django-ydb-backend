@@ -3,7 +3,23 @@ from django.db.backends.base.introspection import BaseDatabaseIntrospection, Tab
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     data_types_reverse = {
-        # непонятно как заполнять. Можно самому сделать енамчик из констант -> тип, чтобы дублей по ключу не было
+        'Uint64': 'BigAutoField',
+        'Bool': 'BooleanField',
+        'Utf8': 'TextField',
+        'String': 'BinaryField',
+        'Date': 'DateField',
+        'Datetime': 'DateTimeField',
+        'Timestamp': 'DateTimeField',
+        'Interval': 'DurationField',
+        'Double': 'FloatField',
+        'Float': 'FloatField',
+        'Int32': 'IntegerField',
+        'Int64': 'BigIntegerField',
+        'Uint32': 'PositiveIntegerField',
+        'Uint16': 'PositiveSmallIntegerField',
+        'Int16': 'SmallIntegerField',
+        'Json': 'JSONField',
+        'Decimal': 'DecimalField',
     }
 
     def get_field_type(self, data_type, description):

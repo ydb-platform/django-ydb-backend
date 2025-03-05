@@ -4,6 +4,30 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 class DatabaseOperations(BaseDatabaseOperations):
     # compiler_module = "ydb_backend.models.sql.compiler"
 
+    cast_data_types = {
+        'AutoField': 'CAST(%(expression)s AS Uint64)',
+        'BigAutoField': 'CAST(%(expression)s AS Uint64)',
+        'BinaryField': 'CAST(%(expression)s AS String)',
+        'BooleanField': 'CAST(%(expression)s AS Bool)',
+        'CharField': 'CAST(%(expression)s AS Utf8)',
+        'DateField': 'CAST(%(expression)s AS Date)',
+        'DateTimeField': 'CAST(%(expression)s AS Datetime)',
+        'DecimalField': 'CAST(%(expression)s AS Decimal(%(max_digits)s, %(decimal_places)s))',
+        'DurationField': 'CAST(%(expression)s AS Interval)',
+        'FloatField': 'CAST(%(expression)s AS Double)',
+        'IntegerField': 'CAST(%(expression)s AS Int32)',
+        'BigIntegerField': 'CAST(%(expression)s AS Int64)',
+        'IPAddressField': 'CAST(%(expression)s AS Utf8)',
+        'GenericIPAddressField': 'CAST(%(expression)s AS Utf8)',
+        'JSONField': 'CAST(%(expression)s AS Json)',
+        'PositiveIntegerField': 'CAST(%(expression)s AS Uint32)',
+        'PositiveSmallIntegerField': 'CAST(%(expression)s AS Uint16)',
+        'SmallIntegerField': 'CAST(%(expression)s AS Int16)',
+        'TextField': 'CAST(%(expression)s AS Utf8)',
+        'TimeField': 'CAST(%(expression)s AS Datetime)',
+        'UUIDField': 'CAST(%(expression)s AS Utf8)',
+    }
+
     integer_field_ranges = {
         **BaseDatabaseOperations.integer_field_ranges,
     }
@@ -15,10 +39,6 @@ class DatabaseOperations(BaseDatabaseOperations):
     }
 
     cast_char_field_without_max_length = "String"
-
-    cast_data_types = {
-        # хз что тут писать пока что
-    }
 
     # explain_prefix = "EXPLAIN" не уверен что есть
 
@@ -113,7 +133,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def quote_name(self, name):
         if name.startswith('"') and name.endswith('"'):
-            return name # Quoting once is enough.
+            return name  # Quoting once is enough.
         return f'"{name}"'
 
     def regex_lookup(self, lookup_type):

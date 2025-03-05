@@ -17,12 +17,6 @@ def db_api_version():
         return tuple(map(int, version))
     return 0, 0, 0
 
-
-# if db_api_version() < (0, 0, 31):
-#    raise ImproperlyConfigured(
-#        f"ydb version 0.0.31 or newer is required; you have {Database.version}"
-#    )
-
 from .client import DatabaseClient  # NOQA
 from .creation import DatabaseCreation  # NOQA
 from .features import DatabaseFeatures  # NOQA
