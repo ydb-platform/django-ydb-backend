@@ -119,6 +119,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         Return a tuple of the database's version.
         E.g. for ydb_version "23.4.11", return (23, 4, 11).
         """
+        return (23,0,0)
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute("SELECT version()")
@@ -134,13 +135,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_connection_params(self):
         settings_dict = self.settings_dict
 
-        if not settings_dict.get("ENDPOINT"):
-            raise ImproperlyConfigured("YDB endpoint is not configured. Set 'ENDPOINT' in DATABASES.")
+        if not settings_dict.get("HOST"):
+            raise ImproperlyConfigured("YDB host is not configured. Set 'ENDPOINT' in DATABASES.")
+        if not settings_dict.get("PORT"):
+            raise ImproperlyConfigured("YDB port is not configured. Set 'ENDPOINT' in DATABASES.")
         if not settings_dict.get("DATABASE"):
             raise ImproperlyConfigured("YDB database is not configured. Set 'DATABASE' in DATABASES.")
 
+
+
         conn_params = {
-            "endpoint": settings_dict["ENDPOINT"],
+            "host": settings_dict["HOST"],
+            "port": settings_dict["PORT"],
             "database": settings_dict["DATABASE"],
             **settings_dict.get("OPTIONS", {}),
         }

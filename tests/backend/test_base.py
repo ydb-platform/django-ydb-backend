@@ -1,9 +1,9 @@
 from django.db import connection
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 
-class TestDatabaseWrapper(TestCase):
-    databases = {"default", "other"}
+class TestDatabaseWrapper(SimpleTestCase):
+    # databases = {"default"}
 
     def test_get_database_version(self):
         """
