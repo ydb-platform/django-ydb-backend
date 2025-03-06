@@ -197,13 +197,12 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         sql_list = []
         for table in tables:
-            sql_list.append("DELETE FROM %s" % self.quote_name(table))
+            sql_list.append(f"DELETE FROM {self.quote_name(table)}")
 
         if reset_sequences:
-            # If sequences are used in YDB, they can be reset.
             for table in tables:
                 sql_list.append(
-                    "ALTER SEQUENCE %s RESTART WITH 1" % self.quote_name(table + '_seq')
+                    f"ALTER SEQUENCE {self.quote_name(table + '_seq')} RESTART WITH 1"
                 )
 
         return sql_list
