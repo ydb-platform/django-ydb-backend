@@ -28,7 +28,9 @@ def get_test_modules():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the Django test suite for YDB backend.")
+    parser = argparse.ArgumentParser(
+        description="Run the Django test suite for YDB backend."
+    )
     parser.add_argument(
         "modules",
         nargs="*",

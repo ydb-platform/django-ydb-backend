@@ -2,9 +2,11 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
-    sql_create_table = "CREATE TABLE %(table)s (%(definition)s) PRIMARY KEY (%(primary_key)s)"
+    sql_create_table = (
+        "CREATE TABLE %(table)s (%(definition)s) PRIMARY KEY (%(primary_key)s)"
+    )
     sql_delete_table = "DROP TABLE %(table)s"
-    '''sql_alter_column =
+    """sql_alter_column =
     sql_alter_column_type =
     sql_alter_column_null =
     sql_alter_column_not_null =
@@ -35,7 +37,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_delete_pk = sql_delete_constraint
     sql_delete_procedure =
     sql_alter_table_comment =
-    sql_alter_column_comment ='''
+    sql_alter_column_comment ="""
 
     def prepare_default(self, value):
         pass

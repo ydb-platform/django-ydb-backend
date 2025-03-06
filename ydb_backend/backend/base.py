@@ -1,29 +1,36 @@
-from django.db.backends.base.base import BaseDatabaseWrapper, logger
 from django.core.exceptions import ImproperlyConfigured
-from django.db.utils import DatabaseError, OperationalError, ProgrammingError
+from django.db.backends.base.base import BaseDatabaseWrapper
+from django.db.backends.base.base import logger
+from django.db.utils import DatabaseError
+from django.db.utils import OperationalError
+from django.db.utils import ProgrammingError
 
 try:
-    import ydb_dbapi as Database
+    import ydb_dbapi as Database  # noqa: N812
 except ImportError:
     Database = None
 
 if Database is None:
-    raise ImproperlyConfigured("Error loading ydb_dbapi module. Install it using 'pip install ydb_dbapi'.")
+    raise ImproperlyConfigured(
+        "Error loading ydb_dbapi module. Install it using 'pip install ydb_dbapi'."
+    )
+
+from .client import DatabaseClient
+from .creation import DatabaseCreation
+from .features import DatabaseFeatures
+from .introspection import DatabaseIntrospection
+from .operations import DatabaseOperations
+from .schema import DatabaseSchemaEditor
+from .validation import DatabaseValidation
 
 
 def db_api_version():
-    if hasattr(Database, 'version'):
+    if hasattr(Database, "version"):
         version = Database.version.VERSION.split(".")
         return tuple(map(int, version))
     return 0, 0, 0
 
-from .client import DatabaseClient  # NOQA
-from .creation import DatabaseCreation  # NOQA
-from .features import DatabaseFeatures  # NOQA
-from .introspection import DatabaseIntrospection  # NOQA
-from .operations import DatabaseOperations  # NOQA
-from .schema import DatabaseSchemaEditor  # NOQA
-from .validation import DatabaseValidation  # NOQA
+
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
@@ -34,55 +41,55 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
-        'AutoField': 'Int64',
-        'BigAutoField': 'Int64',
-        'BinaryField': 'String',
-        'BooleanField': 'Bool',
-        'CharField': 'String',
-        'DateField': 'Date',
-        'DateTimeField': 'Datetime',
-        'DecimalField': 'Decimal',
-        'DurationField': 'Interval',
-        'FileField': 'String',
-        'FilePathField': 'String',
-        'FloatField': 'Double',
-        'IntegerField': 'Int32',
-        'BigIntegerField': 'Int64',
-        'IPAddressField': 'String',
-        'GenericIPAddressField': 'String',
-        'NullBooleanField': 'Bool',
-        'OneToOneField': 'Int64',
-        'PositiveIntegerField': 'Uint32',
-        'PositiveBigIntegerField': 'Int64',
-        'PositiveSmallIntegerField': 'Uint16',
-        'SlugField': 'String',
-        'SmallAutoField': 'Int32',
-        'SmallIntegerField': 'Int16',
-        'TextField': 'String',
-        'TimeField': 'Timestamp',
-        'UUIDField': 'String',
+        "AutoField": "Int64",
+        "BigAutoField": "Int64",
+        "BinaryField": "String",
+        "BooleanField": "Bool",
+        "CharField": "String",
+        "DateField": "Date",
+        "DateTimeField": "Datetime",
+        "DecimalField": "Decimal",
+        "DurationField": "Interval",
+        "FileField": "String",
+        "FilePathField": "String",
+        "FloatField": "Double",
+        "IntegerField": "Int32",
+        "BigIntegerField": "Int64",
+        "IPAddressField": "String",
+        "GenericIPAddressField": "String",
+        "NullBooleanField": "Bool",
+        "OneToOneField": "Int64",
+        "PositiveIntegerField": "Uint32",
+        "PositiveBigIntegerField": "Int64",
+        "PositiveSmallIntegerField": "Uint16",
+        "SlugField": "String",
+        "SmallAutoField": "Int32",
+        "SmallIntegerField": "Int16",
+        "TextField": "String",
+        "TimeField": "Timestamp",
+        "UUIDField": "String",
     }
 
     operators = {
-        'exact': '= %s',
-        'iexact': 'ILIKE %s',
-        'contains': 'LIKE %s',
-        'icontains': 'ILIKE %s',
-        'gt': '> %s',
-        'gte': '>= %s',
-        'lt': '< %s',
-        'lte': '<= %s',
-        'startswith': 'LIKE %s',
-        'endswith': 'LIKE %s',
-        'istartswith': 'ILIKE %s',
-        'iendswith': 'ILIKE %s',
-        'and': 'AND',
-        'or': 'OR',
-        'in': 'IN (%s)',
-        'between': 'BETWEEN %s AND %s',
-        'isnull': 'IS NULL',
-        'regex': 'REGEXP %s',
-        'iregex': 'REGEXP %s',
+        "exact": "= %s",
+        "iexact": "ILIKE %s",
+        "contains": "LIKE %s",
+        "icontains": "ILIKE %s",
+        "gt": "> %s",
+        "gte": ">= %s",
+        "lt": "< %s",
+        "lte": "<= %s",
+        "startswith": "LIKE %s",
+        "endswith": "LIKE %s",
+        "istartswith": "ILIKE %s",
+        "iendswith": "ILIKE %s",
+        "and": "AND",
+        "or": "OR",
+        "in": "IN (%s)",
+        "between": "BETWEEN %s AND %s",
+        "isnull": "IS NULL",
+        "regex": "REGEXP %s",
+        "iregex": "REGEXP %s",
     }
 
     # The patterns below are used to generate SQL pattern lookup clauses when
@@ -97,12 +104,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         r"REPLACE(REPLACE(REPLACE({}, E'\\', E'\\\\'), E'%%', E'\\%%'), E'_', E'\\_')"
     )
     pattern_ops = {
-        'contains': "LIKE '%%%s%%' ESCAPE '\\'",
-        'icontains': "ILIKE '%%%s%%' ESCAPE '\\'",
-        'startswith': "LIKE '%s%%' ESCAPE '\\'",
-        'istartswith': "ILIKE '%s%%' ESCAPE '\\'",
-        'endswith': "LIKE '%%%s' ESCAPE '\\'",
-        'iendswith': "ILIKE '%%%s' ESCAPE '\\'",
+        "contains": "LIKE '%%%s%%' ESCAPE '\\'",
+        "icontains": "ILIKE '%%%s%%' ESCAPE '\\'",
+        "startswith": "LIKE '%s%%' ESCAPE '\\'",
+        "istartswith": "ILIKE '%s%%' ESCAPE '\\'",
+        "endswith": "LIKE '%%%s' ESCAPE '\\'",
+        "iendswith": "ILIKE '%%%s' ESCAPE '\\'",
     }
 
     Database = Database
@@ -127,12 +134,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 cursor.execute("SELECT version()")
                 row = cursor.fetchone()
                 if row:
-                    parts = row[0].decode('utf-8').split('-')[0].split('.')
+                    parts = row[0].decode("utf-8").split("-")[0].split(".")
                     return tuple(int(part) for part in parts)
-                else:
-                    return None
+                return None
         except (OperationalError, ProgrammingError) as e:
-            logger.warning(f"Failed to get database version: {e}. Falling back to driver version.")
+            logger.warning(
+                f"Failed to get database version: {e}. Falling back to driver version."
+            )
             return db_api_version()
         except DatabaseError as e:
             logger.error(f"Database error while getting version: {e}")
@@ -142,11 +150,17 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         settings_dict = self.settings_dict
 
         if not settings_dict.get("HOST"):
-            raise ImproperlyConfigured("YDB host is not configured. Set 'HOST' in DATABASES.")
+            raise ImproperlyConfigured(
+                "YDB host is not configured. Set 'HOST' in DATABASES."
+            )
         if not settings_dict.get("PORT"):
-            raise ImproperlyConfigured("YDB port is not configured. Set 'PORT' in DATABASES.")
+            raise ImproperlyConfigured(
+                "YDB port is not configured. Set 'PORT' in DATABASES."
+            )
         if not settings_dict.get("DATABASE"):
-            raise ImproperlyConfigured("YDB database is not configured. Set 'DATABASE' in DATABASES.")
+            raise ImproperlyConfigured(
+                "YDB database is not configured. Set 'DATABASE' in DATABASES."
+            )
 
         conn_params = {
             "host": settings_dict["HOST"],
@@ -175,7 +189,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return connection
         except Exception as e:
             logger.error(f"Failed to connect to YDB: {e}")
-            raise OperationalError(f"Failed to connect to YDB: {e}")
+            msg = f"Failed to connect to YDB: {e}"
+            raise OperationalError(msg)
 
     def create_cursor(self, name=None):
         return self.connection.cursor()

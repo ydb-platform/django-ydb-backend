@@ -11,18 +11,20 @@ class TestDatabaseWrapper(SimpleTestCase):
 
     def test_get_connection_params(self):
         params = connection.get_connection_params()
-        self.assertIn('name', params)
-        self.assertIn('host', params)
-        self.assertIn('port', params)
-        self.assertIn('database', params)
+        self.assertIn("name", params)
+        self.assertIn("host", params)
+        self.assertIn("port", params)
+        self.assertIn("database", params)
 
     def test_get_new_connection(self):
-        new_connection = connection.get_new_connection(connection.get_connection_params())
-        self.assertTrue(hasattr(new_connection, 'cursor'))
+        new_connection = connection.get_new_connection(
+            connection.get_connection_params()
+        )
+        self.assertTrue(hasattr(new_connection, "cursor"))
 
     def test_create_cursor(self):
         cursor = connection.create_cursor()
-        self.assertTrue(hasattr(cursor, 'execute'))
+        self.assertTrue(hasattr(cursor, "execute"))
 
     def test_is_usable(self):
         self.assertTrue(connection.is_usable())
