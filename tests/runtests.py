@@ -1,12 +1,13 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
 import django
 from django.conf import settings
 from django.test.utils import get_runner
 
-RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
+RUNTESTS_DIR = Path(__file__).resolve().parent
 SKIP_DIRS = ["unsupported"]
 
 
@@ -17,10 +18,10 @@ def get_test_modules():
     with os.scandir(RUNTESTS_DIR) as entries:
         for f in entries:
             if (
-                "." in f.name
-                or os.path.basename(f.name) in SKIP_DIRS
-                or f.is_file()
-                or not os.path.exists(os.path.join(f.path, "__init__.py"))
+                    "." in f.name
+                    or Path(f.name).name in SKIP_DIRS
+                    or f.is_file()
+                    or not (Path(f.path) / "__init__.py").exists()
             ):
                 continue
             test_module = f.name
