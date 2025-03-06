@@ -41,36 +41,36 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     # хз что это за функция
     def format_for_duration_arithmetic(self, sql):
-        return "DateTime::ToMicroseconds(%s)" % sql
+        return f"DateTime::ToMicroseconds({sql})"
 
     def date_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "year":
-            return "DateTime::GetYear(%s)" % sql, params
+            return f"DateTime::GetYear({sql})", params
         if lookup_type == "month":
-            return "DateTime::GetMonth(%s)" % sql, params
+            return f"DateTime::GetMonth({sql})", params
         if lookup_type == "day":
-            return "DateTime::GetDay(%s)" % sql, params
+            return f"DateTime::GetDay({sql})", params
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
     # можно по проще вроде написать
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
-            sql = "DateTime::MakeTzTimestamp(%s, %dst)" % (sql, tzname)
+            sql = f"DateTime::MakeTzTimestamp({sql}, {tzname})"
 
         if lookup_type == "year":
-            return "DateTime::MakeDate(DateTime::GetYear(%s), 1, 1)" % sql, params
+            return f"DateTime::MakeDate(DateTime::GetYear({sql}), 1, 1)", params
         if lookup_type == "month":
             return (
-                "DateTime::MakeDate(DateTime::GetYear(%s1), "
-                "DateTime::GetMonth(%s2), 1)" % (sql, sql),
+                f"DateTime::MakeDate(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), 1)",
                 params,
             )
         if lookup_type == "day":
             return (
-                "DateTime::MakeDate(DateTime::GetYear(%s1), "
-                "DateTime::GetMonth(%s2), "
-                "DateTime::GetDay(%s3))" % (sql, sql, sql),
+                f"DateTime::MakeDate(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"

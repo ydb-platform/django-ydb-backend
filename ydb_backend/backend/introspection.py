@@ -117,7 +117,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         constraints = {}
         cursor.execute(f"PRAGMA table_info({table_name})")
         for row in cursor.fetchall():
-            if row[5]:  # Если столбец является первичным ключом
+            if row[5]:
                 constraints[f"primary_key_{row[1]}"] = {
                     "columns": [row[1]],
                     "primary_key": True,
@@ -126,7 +126,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                     "check": False,
                     "index": False,
                 }
-        # Получаем информацию об индексах
+
         cursor.execute(f"PRAGMA index_list({table_name})")
         for row in cursor.fetchall():
             constraints[row[1]] = {
