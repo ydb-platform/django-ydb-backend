@@ -4,6 +4,7 @@ BASE_DIR = Path(__file__).parent
 
 DATABASES = {
     "default": {
+        'NAME': "ydb_db",
         'ENGINE': 'ydb_backend.backend',
         'HOST': 'localhost',
         'PORT': '2136',

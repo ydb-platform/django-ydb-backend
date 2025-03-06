@@ -4,7 +4,7 @@ from django.utils.functional import cached_property
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     # An optional tuple indicating the minimum supported database version.
-    minimum_database_version = (23,)
+    minimum_database_version = (20,)
     allows_group_by_selected_pks = True
     update_can_self_select = False
 

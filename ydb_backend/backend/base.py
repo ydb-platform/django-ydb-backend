@@ -119,12 +119,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         Return a tuple of the database's version.
         E.g. for ydb_version "23.4.11", return (23, 4, 11).
         """
-        return (23,0,0)
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute("SELECT version()")
                 row = cursor.fetchone()
-                return row[0] if row else None
+                if row:
+                    parts = row[0].decode('utf-8').split('-')[0].split('.')
+                    return tuple(int(part) for part in parts)
+                else:
+                    return None
         except (OperationalError, ProgrammingError) as e:
             logger.warning(f"Failed to get database version: {e}. Falling back to driver version.")
             return db_api_version()
@@ -150,13 +153,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             "database": settings_dict["DATABASE"],
             **settings_dict.get("OPTIONS", {}),
         }
-
+        if settings_dict.get("NAME"):
+            conn_params["name"] = settings_dict["NAME"]
         if settings_dict.get("CREDENTIALS"):
             conn_params["credentials"] = settings_dict["CREDENTIALS"]
-
         if settings_dict.get("ROOT_CERTIFICATES"):
             conn_params["root_certificates"] = settings_dict["ROOT_CERTIFICATES"]
-
         if settings_dict.get("CONNECTION_TIMEOUT"):
             conn_params["connection_timeout"] = settings_dict["CONNECTION_TIMEOUT"]
         if settings_dict.get("REQUEST_TIMEOUT"):

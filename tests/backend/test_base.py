@@ -3,7 +3,7 @@ from django.test import SimpleTestCase
 
 
 class TestDatabaseWrapper(SimpleTestCase):
-    # databases = {"default"}
+    databases = {"default"}
 
     def test_get_database_version(self):
         """
