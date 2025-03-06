@@ -39,34 +39,38 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     cast_char_field_without_max_length = "String"
 
+    # хз что это за функция
     def format_for_duration_arithmetic(self, sql):
-        return f"DateTime::Interval({sql})"
+        return "DateTime::ToMicroseconds(%s)" % sql
 
     def date_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "year":
-            return f"DateTime::GetYear({sql})", params
+            return "DateTime::GetYear(%s)" % sql, params
         if lookup_type == "month":
-            return f"DateTime::GetMonth({sql})", params
+            return "DateTime::GetMonth(%s)" % sql, params
         if lookup_type == "day":
-            return f"DateTime::GetDay({sql})", params
+            return "DateTime::GetDay(%s)" % sql, params
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
     # можно по проще вроде написать
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
-            sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
+            sql = "DateTime::MakeTzTimestamp(%s, %dst)" % (sql, tzname)
 
         if lookup_type == "year":
-            return f"DateTime::MakeDate(DateTime::GetYear({sql}), 1, 1)", params
+            return "DateTime::MakeDate(DateTime::GetYear(%s), 1, 1)" % sql, params
         if lookup_type == "month":
             return (
-                f"DateTime::MakeDate(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), 1)",
+                "DateTime::MakeDate(DateTime::GetYear(%s1), "
+                "DateTime::GetMonth(%s2), 1)" % (sql, sql),
                 params,
             )
         if lookup_type == "day":
             return (
-                f"DateTime::MakeDate(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}))",
+                "DateTime::MakeDate(DateTime::GetYear(%s1), "
+                "DateTime::GetMonth(%s2), "
+                "DateTime::GetDay(%s3))" % (sql, sql, sql),
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
@@ -109,27 +113,41 @@ class DatabaseOperations(BaseDatabaseOperations):
             )
         if lookup_type == "month":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), 1, 0, 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), 1, 0, 0, 0)",
                 params,
             )
         if lookup_type == "day":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), 0, 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), DateTime::GetDay({sql}), 0, 0, 0)",
                 params,
             )
         if lookup_type == "hour":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), 0, 0)",
                 params,
             )
         if lookup_type == "minute":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), DateTime::GetMinute({sql}), 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), 0)",
                 params,
             )
         if lookup_type == "second":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), "
+                f"DateTime::GetSecond({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
@@ -144,12 +162,14 @@ class DatabaseOperations(BaseDatabaseOperations):
             return f"DateTime::MakeTime(DateTime::GetHour({sql}), 0, 0)", params
         if lookup_type == "minute":
             return (
-                f"DateTime::MakeTime(DateTime::GetHour({sql}), DateTime::GetMinute({sql}), 0)",
+                f"DateTime::MakeTime(DateTime::GetHour({sql}) ,"
+                f"DateTime::GetMinute({sql}), 0)",
                 params,
             )
         if lookup_type == "second":
             return (
-                f"DateTime::MakeTime(DateTime::GetHour({sql}), DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
+                f"DateTime::MakeTime(DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
