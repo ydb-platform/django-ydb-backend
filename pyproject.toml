@@ -3,7 +3,7 @@ name = "django-ydb-backend"
 version = "0.0.0"
 description = "Django backend for YDB"
 authors = [
-    {name = "Mirzofirdavs", email = "mirzofirdavs@github.com"},
+    {name = "Yandex LLC", email = "ydb@yandex-team.ru"},
 ]
 readme = "README.md"
 requires-python = ">=3.8,<4"
@@ -16,10 +16,6 @@ dependencies = [
 packages = [
     { include = "ydb_backend" },
 ]
-
-
-[tool.poetry.group.dev.dependencies]
-typing-extensions = "^4.12.2"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

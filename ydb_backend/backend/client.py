@@ -12,8 +12,11 @@ class DatabaseClient(BaseDatabaseClient):
     def settings_to_cmd_args_env(cls, settings_dict, parameters):
         args = [cls.executable_name]
 
-        if "ENDPOINT" in settings_dict:
-            args.extend(["--endpoint", settings_dict["ENDPOINT"]])
+        if "HOST" in settings_dict:
+            args.extend(["--host", settings_dict["host"]])
+
+        if "PORT" in settings_dict:
+            args.extend(["--port", settings_dict["PORT"]])
 
         if "DATABASE" in settings_dict:
             args.extend(["--database", settings_dict["DATABASE"]])

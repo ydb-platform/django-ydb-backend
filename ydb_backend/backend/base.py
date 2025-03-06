@@ -8,7 +8,7 @@ except ImportError:
     Database = None
 
 if Database is None:
-    raise ImproperlyConfigured("Error loading ydb module. Install it using 'pip install ydb'.")
+    raise ImproperlyConfigured("Error loading ydb_dbapi module. Install it using 'pip install ydb_dbapi'.")
 
 
 def db_api_version():
@@ -142,9 +142,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         settings_dict = self.settings_dict
 
         if not settings_dict.get("HOST"):
-            raise ImproperlyConfigured("YDB host is not configured. Set 'ENDPOINT' in DATABASES.")
+            raise ImproperlyConfigured("YDB host is not configured. Set 'HOST' in DATABASES.")
         if not settings_dict.get("PORT"):
-            raise ImproperlyConfigured("YDB port is not configured. Set 'ENDPOINT' in DATABASES.")
+            raise ImproperlyConfigured("YDB port is not configured. Set 'PORT' in DATABASES.")
         if not settings_dict.get("DATABASE"):
             raise ImproperlyConfigured("YDB database is not configured. Set 'DATABASE' in DATABASES.")
 
@@ -187,9 +187,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if self.connection is None:
             return False
         try:
-            session = self.connection.cursor()
-            session.execute("SELECT 1")
-            return True
+            with self.create_cursor() as cursor:
+                cursor.execute("SELECT 1")
+                return cursor.rowcount == 1
         except Exception as e:
             logger.warning(f"Connection is not usable: {e}")
             return False
