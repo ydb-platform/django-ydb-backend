@@ -4,14 +4,15 @@ from django.db.backends.base.creation import BaseDatabaseCreation
 class DatabaseCreation(BaseDatabaseCreation):
 
     def _execute_create_test_db(self, cursor, parameters, keepdb=False):
-        try:
-            print("хуй")
-            cursor.execute_scheme("CREATE DATABASE %(dbname)s %(suffix)s" % parameters)
-        except Exception as e:
-            self.log(f"Error creating test database: {e}")
-            if not keepdb:
-                raise
-            self.log("Failed to create test database, it may already exist.")
+        # try:
+        #     print("хуй")
+        #     cursor.execute_scheme("CREATE DATABASE %(dbname)s %(suffix)s" % parameters)
+        # except Exception as e:
+        #     self.log(f"Error creating test database: {e}")
+        #     if not keepdb:
+        #         raise
+        #     self.log("Failed to create test database, it may already exist.")
+        return None
 
     def _clone_test_db(self, suffix, verbosity, keepdb=False):
         test_database_name = self.get_test_db_clone_settings(suffix)["NAME"]
@@ -25,7 +26,7 @@ class DatabaseCreation(BaseDatabaseCreation):
             self.log(f"Creating test database '{test_database_name}'...")
 
         try:
-            with self._nodb_cursor() as cursor:
+            with self.connection.cursor() as cursor:
                 self._execute_create_test_db(cursor, test_db_params, keepdb)
         except Exception as e:
             self.log(f"{e} occurred")

@@ -114,6 +114,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     ops_class = DatabaseOperations
     validation_class = DatabaseValidation
 
+    def get_table_names(self):
+        return self.connection.get_table_names()
+
     def get_database_version(self):
         """
         Return a tuple of the database's version.
@@ -144,8 +147,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             raise ImproperlyConfigured("YDB port is not configured. Set 'ENDPOINT' in DATABASES.")
         if not settings_dict.get("DATABASE"):
             raise ImproperlyConfigured("YDB database is not configured. Set 'DATABASE' in DATABASES.")
-
-
 
         conn_params = {
             "host": settings_dict["HOST"],

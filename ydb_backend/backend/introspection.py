@@ -1,4 +1,4 @@
-from django.db.backends.base.introspection import BaseDatabaseIntrospection, TableInfo
+from django.db.backends.base.introspection import BaseDatabaseIntrospection
 
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
@@ -47,13 +47,28 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
         return field_type
 
-    # не уверен что from существует, ничего другого не нашел
+    # не уверен, что from существует, ничего другого не нашел
     def get_table_list(self, cursor):
-        """Return a list of table and view names in the current database."""
-        cursor.execute("SELECT table_name, type FROM system.tables")
-        return [TableInfo(*row) for row in cursor.fetchall()]
+        # """Return a list of table and view names in the current database."""
+        # cursor.execute("SELECT table_name, type FROM system.tables")
+        # return [TableInfo(*row) for row in cursor.fetchall()]
+        return self.connection.get_table_names()
 
-    # не уверен что правильно, ничего другого не нашел
+    def table_names(self, cursor=None, include_views=False):
+        """
+        Return a list of names of all tables that exist in the database.
+        Sort the returned table list by Python's default sorting. Do NOT use
+        the database's ORDER BY here to avoid subtle differences in sorting
+        order between databases.
+        """
+
+        return sorted(
+                ti.name
+                for ti in self.get_table_list(cursor)
+                if include_views
+            )
+
+    # не уверен, что правильно, ничего другого не нашел
     def get_table_description(self, cursor, table_name):
         cursor.execute(f"PRAGMA table_info({table_name})")
         return cursor.fetchall()

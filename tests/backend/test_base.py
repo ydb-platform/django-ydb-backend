@@ -19,9 +19,10 @@ class TestDatabaseWrapper(SimpleTestCase):
         Проверяет, что метод возвращает правильные параметры подключения к базе данных YDB.
         """
         params = connection.get_connection_params()
-        self.assertIn('endpoint', params)
+        self.assertIn('name', params)
+        self.assertIn('host', params)
+        self.assertIn('port', params)
         self.assertIn('database', params)
-        self.assertIn('credentials', params)
 
     def test_get_new_connection(self):
         """
