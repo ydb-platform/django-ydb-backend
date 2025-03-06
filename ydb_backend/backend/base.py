@@ -31,8 +31,6 @@ def db_api_version():
     return 0, 0, 0
 
 
-
-
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = "ydb"
     display_name = "YDB"
