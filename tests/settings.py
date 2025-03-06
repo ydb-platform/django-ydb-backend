@@ -16,7 +16,4 @@ DATABASES = {
     }
 }
 
-try:
-    from local_settings import SECRET_KEY
-except ImportError:
-    SECRET_KEY = "django_tests_secret_key"
+# SECRET_KEY = "django_tests_secret_key"
