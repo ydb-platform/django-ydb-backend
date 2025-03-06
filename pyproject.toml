@@ -3,11 +3,13 @@ name = "django-ydb-backend"
 version = "0.0.0"
 description = "Django backend for YDB"
 authors = [
-    {name = "Mirzofirdavs",email = "mirzofirdavs@github.com"}
+    {name = "Yandex LLC", email = "ydb@yandex-team.ru"},
 ]
 readme = "README.md"
-requires-python = ">=3.8, <4"
+requires-python = ">=3.8,<4"
 dependencies = [
+    "ydb-dbapi (>=0.1.8,<0.2.0)",
+    "django (>=3.2.0,<6.0.0)"
 ]
 
 [tool.poetry]
@@ -15,7 +17,57 @@ packages = [
     { include = "ydb_backend" },
 ]
 
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.9.9"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv"]
+line-length = 88
+target-version = "py39"
+src = ["ydb_backend", "tests"]
+
+[tool.ruff.lint]
+ignore = [
+    "D", # Allow not to have docstring for each method
+    "ANN", # Allow not to have annotations,
+    "ARG002", # Allow to have unused method arguments
+    "FIX002", # Allow to use TODO in code
+    "TD001", # Allow to specify FIXME (still trigger FIX001)
+    "TD002", # Allow not to specify author of todo
+    "TD003", # Allow not to specify ticket of todo (it doesn't work)
+    "PERF401", # Allow not to use list comprehension each time
+    "FBT", # Allow boolean positional arguments
+    "TCH002", # Allow not to use `if TYPE_CHECKING` for all imports, which don't used explicitly
+    "TCH003", # Allow not to use `if TYPE_CHECKING` for std lib imports
+    "ISC001", # Conflicts with formatter
+    "COM812", # Conflicts with formatter
+    "PLR0911", # Allow to have too many return statements
+    "PT009", # We use Django asserts
+    # Ignores below could be deleted
+    "EM101", # Allow to use string literals in exceptions
+    "TRY003", # Allow specifying long messages outside the exception class
+    "SLF001", # Allow access private member,
+    "PGH003", # Allow not to specify rule codes
+    "PLR0913", # Allow to have many arguments in function definition
+    "RUF012", # Allow not to annotate mutable class attributes
+]
+select = ["ALL"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = ["B"]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["S", "SLF", "ANN201", "ARG", "PLR2004", "PT012"]
+"conftest.py" = ["S", "ARG001"]
+"__init__.py" = ["F401", "F403"]
