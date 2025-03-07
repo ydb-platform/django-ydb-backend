@@ -31,8 +31,6 @@ def db_api_version():
     return 0, 0, 0
 
 
-
-
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = "ydb"
     display_name = "YDB"
@@ -186,11 +184,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             logger.debug(f"Connecting to YDB with params: {conn_params}")
             connection = Database.connect(**conn_params)
             logger.info("Successfully connected to YDB.")
-            return connection
-        except Exception as e:
+        except DatabaseError as e:
             logger.error(f"Failed to connect to YDB: {e}")
             msg = f"Failed to connect to YDB: {e}"
-            raise OperationalError(msg)
+            raise OperationalError(msg) from e
+        else:
+            return connection
 
     def create_cursor(self, name=None):
         return self.connection.cursor()
@@ -205,6 +204,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             with self.create_cursor() as cursor:
                 cursor.execute("SELECT 1")
                 return cursor.rowcount == 1
-        except Exception as e:
+        except DatabaseError as e:
             logger.warning(f"Connection is not usable: {e}")
             return False

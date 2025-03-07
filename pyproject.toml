@@ -41,12 +41,13 @@ ignore = [
     "TD003", # Allow not to specify ticket of todo (it doesn't work)
     "PERF401", # Allow not to use list comprehension each time
     "FBT", # Allow boolean positional arguments
-    "TCH002", # Allow not to use `if TYPE_CHECKING` for all imports, which don't used explicitly
-    "TCH003", # Allow not to use `if TYPE_CHECKING` for std lib imports
+    "TC002", # Allow not to use `if TYPE_CHECKING` for all imports, which don't used explicitly
+    "TC003", # Allow not to use `if TYPE_CHECKING` for std lib imports
     "ISC001", # Conflicts with formatter
     "COM812", # Conflicts with formatter
     "PLR0911", # Allow to have too many return statements
     "PT009", # We use Django asserts
+    "S608", # Possible SQL injection vector through string-based query construction"
     # Ignores below could be deleted
     "EM101", # Allow to use string literals in exceptions
     "TRY003", # Allow specifying long messages outside the exception class

@@ -1,7 +1,3 @@
-import os
-import signal
-import subprocess
-
 from django.db.backends.base.client import BaseDatabaseClient
 
 
@@ -32,16 +28,3 @@ class DatabaseClient(BaseDatabaseClient):
         }
 
         return args, env
-
-    def runshell(self, parameters):
-        args, env = self.settings_to_cmd_args_env(
-            self.connection.settings_dict, parameters
-        )
-        env = {**os.environ, **env} if env else None
-
-        sigint_handler = signal.getsignal(signal.SIGINT)
-        try:
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            subprocess.run(args, env=env, check=True)  # noqa(S603)
-        finally:
-            signal.signal(signal.SIGINT, sigint_handler)

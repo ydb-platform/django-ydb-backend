@@ -10,7 +10,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         "CharField": "CAST(%(expression)s AS Utf8)",
         "DateField": "CAST(%(expression)s AS Date)",
         "DateTimeField": "CAST(%(expression)s AS Datetime)",
-        "DecimalField": "CAST(%(expression)s AS Decimal(%(max_digits)s, %(decimal_places)s))",
+        "DecimalField": "CAST(%(expression)s AS "
+                        "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
         "FloatField": "CAST(%(expression)s AS Double)",
         "IntegerField": "CAST(%(expression)s AS Int32)",
@@ -39,7 +40,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     cast_char_field_without_max_length = "String"
 
     def format_for_duration_arithmetic(self, sql):
-        return f"DateTime::Interval({sql})"
+        return f"DateTime::ToMicroseconds({sql})"
 
     def date_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "year":
@@ -51,21 +52,23 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
-            sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
+            sql = f"DateTime::MakeTzTimestamp({sql}, {tzname})"
 
         if lookup_type == "year":
             return f"DateTime::MakeDate(DateTime::GetYear({sql}), 1, 1)", params
         if lookup_type == "month":
             return (
-                f"DateTime::MakeDate(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), 1)",
+                f"DateTime::MakeDate(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), 1)",
                 params,
             )
         if lookup_type == "day":
             return (
-                f"DateTime::MakeDate(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}))",
+                f"DateTime::MakeDate(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
@@ -97,7 +100,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
         sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
 
@@ -108,33 +110,46 @@ class DatabaseOperations(BaseDatabaseOperations):
             )
         if lookup_type == "month":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), 1, 0, 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), 1, 0, 0, 0)",
                 params,
             )
         if lookup_type == "day":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), 0, 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), "
+                f"DateTime::GetMonth({sql}), DateTime::GetDay({sql}), 0, 0, 0)",
                 params,
             )
         if lookup_type == "hour":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), 0, 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), 0, 0)",
                 params,
             )
         if lookup_type == "minute":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), DateTime::GetMinute({sql}), 0)",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), 0)",
                 params,
             )
         if lookup_type == "second":
             return (
-                f"DateTime::MakeDatetime(DateTime::GetYear({sql}), DateTime::GetMonth({sql}), DateTime::GetDay({sql}), DateTime::GetHour({sql}), DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
+                f"DateTime::MakeDatetime(DateTime::GetYear({sql}),"
+                f"DateTime::GetMonth({sql}), "
+                f"DateTime::GetDay({sql}), "
+                f"DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), "
+                f"DateTime::GetSecond({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
             sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
@@ -143,12 +158,14 @@ class DatabaseOperations(BaseDatabaseOperations):
             return f"DateTime::MakeTime(DateTime::GetHour({sql}), 0, 0)", params
         if lookup_type == "minute":
             return (
-                f"DateTime::MakeTime(DateTime::GetHour({sql}), DateTime::GetMinute({sql}), 0)",
+                f"DateTime::MakeTime(DateTime::GetHour({sql}) ,"
+                f"DateTime::GetMinute({sql}), 0)",
                 params,
             )
         if lookup_type == "second":
             return (
-                f"DateTime::MakeTime(DateTime::GetHour({sql}), DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
+                f"DateTime::MakeTime(DateTime::GetHour({sql}), "
+                f"DateTime::GetMinute({sql}), DateTime::GetSecond({sql}))",
                 params,
             )
         msg = f"Unsupported lookup type: {lookup_type}"
@@ -179,7 +196,6 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql_list.append(f"DELETE FROM {self.quote_name(table)}")
 
         if reset_sequences:
-            # If sequences are used in YDB, they can be reset.
             for table in tables:
                 sql_list.append(
                     f"ALTER SEQUENCE {self.quote_name(table + '_seq')} RESTART WITH 1"

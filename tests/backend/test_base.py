@@ -8,6 +8,7 @@ class TestDatabaseWrapper(SimpleTestCase):
     def test_get_database_version(self):
         version = connection.get_database_version()
         self.assertIsNotNone(version)
+        self.assertEqual(version, (24, 3, 11))
 
     def test_get_connection_params(self):
         params = connection.get_connection_params()
@@ -25,6 +26,9 @@ class TestDatabaseWrapper(SimpleTestCase):
     def test_create_cursor(self):
         cursor = connection.create_cursor()
         self.assertTrue(hasattr(cursor, "execute"))
+        cursor.execute("SELECT 10")
+        result = cursor.fetchone()
+        self.assertEqual(result, (10,))
 
     def test_is_usable(self):
         self.assertTrue(connection.is_usable())
