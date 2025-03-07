@@ -39,7 +39,6 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     cast_char_field_without_max_length = "String"
 
-    # хз что это за функция
     def format_for_duration_arithmetic(self, sql):
         return f"DateTime::ToMicroseconds({sql})"
 
@@ -53,7 +52,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
             sql = f"DateTime::MakeTzTimestamp({sql}, {tzname})"
@@ -102,7 +100,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
         sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
 
@@ -153,7 +150,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Unsupported lookup type: {lookup_type}"
         raise ValueError(msg)
 
-    # можно по проще вроде написать
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
         if tzname:
             sql = f"DateTime::MakeTzTimestamp({sql}, '{tzname}')"
