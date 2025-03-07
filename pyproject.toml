@@ -47,6 +47,7 @@ ignore = [
     "COM812", # Conflicts with formatter
     "PLR0911", # Allow to have too many return statements
     "PT009", # We use Django asserts
+    "S608", # Possible SQL injection vector through string-based query construction"
     # Ignores below could be deleted
     "EM101", # Allow to use string literals in exceptions
     "TRY003", # Allow specifying long messages outside the exception class
