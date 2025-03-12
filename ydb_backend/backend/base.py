@@ -39,11 +39,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
-        "AutoField": "Int64",
+        "AutoField": "Int32",
         "BigAutoField": "Int64",
         "BinaryField": "String",
         "BooleanField": "Bool",
-        "CharField": "String",
+        "CharField": "Utf8",
         "DateField": "Date",
         "DateTimeField": "Datetime",
         "DecimalField": "Decimal",
@@ -53,19 +53,20 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "FloatField": "Double",
         "IntegerField": "Int32",
         "BigIntegerField": "Int64",
-        "IPAddressField": "String",
-        "GenericIPAddressField": "String",
-        "NullBooleanField": "Bool",
+        "IPAddressField": "Utf8",
+        "GenericIPAddressField": "Utf8",
+        "NullBooleanField": "optional<Bool>",
         "OneToOneField": "Int64",
         "PositiveIntegerField": "Uint32",
-        "PositiveBigIntegerField": "Int64",
+        "PositiveBigIntegerField": "Uint64",
         "PositiveSmallIntegerField": "Uint16",
         "SlugField": "String",
-        "SmallAutoField": "Int32",
+        "SmallAutoField": "Int16",
         "SmallIntegerField": "Int16",
         "TextField": "String",
         "TimeField": "Timestamp",
-        "UUIDField": "String",
+        "UUIDField": "Utf8",
+        "JSONField": "Json",
     }
 
     operators = {
