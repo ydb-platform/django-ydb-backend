@@ -15,8 +15,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Does the backend distinguish between '' and None?
     interprets_empty_strings_as_nulls = True
 
+    # Does the backend consider table names with different casing to
+    # be equal?
+    ignores_table_name_case = True
+
     # Does the backend allow inserting duplicate NULL rows in a nullable
-    # unique field? All core backends implement this correctly, but other
+    # unique field? All core backend implement this correctly, but other
     # databases such as SQL Server do not.
     supports_nullable_unique_constraints = False
 
@@ -65,6 +69,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # which can't do it for MyISAM tables
     can_introspect_foreign_keys = False
 
+    # Map fields which some backend may not be able to differentiate to the
+    # field it's introspected as.
     @cached_property
     def introspected_field_types(self):
         return {
@@ -75,12 +81,14 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "FileField": "FileField",
             "FilePathField": "FilePathField",
             "FloatField": "FloatField",
+            "DoubleField": "DoubleField",
             "IPAddressField": "IPAddressField",
             "NullBooleanField": "NullBooleanField",
             "OneToOneField": "OneToOneField",
             "SlugField": "SlugField",
             "TextField": "TextField",
             "UUIDField": "UUIDField",
+            "EnumField": "EnumField",
         }
 
     # Can the backend introspect the column order (ASC/DESC) for indexes?
@@ -95,7 +103,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     can_create_inline_fk = False
 
     # Can an index be renamed?
-    can_rename_index = False
+    can_rename_index = True
 
     # Does it automatically index foreign keys?
     indexes_foreign_keys = False
@@ -151,7 +159,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_covering_indexes = True
 
     # Does the backend support indexes on expressions?
-    supports_expression_indexes = False
+    supports_expression_indexes = True
 
     # Does the database allow more than one constraint or index on the same
     # field(s)?

@@ -2,6 +2,9 @@ from django.core.management.color import no_style
 from django.db import connection
 from django.test import SimpleTestCase
 
+from ..models import Person
+from ..models import Tag
+
 TZ_NAME = "Europe/Moscow"
 
 LOOKUP_TYPES = [
@@ -18,57 +21,46 @@ LOOKUP_TYPES = [
 ]
 
 
-class TestDatabaseWrapper(SimpleTestCase):
+class TestDatabaseOperations(SimpleTestCase):
     databases = {"default"}
 
     def test_format_for_duration_arithmetic(self):
         self.assertEqual(
             connection.ops.format_for_duration_arithmetic("column_name"),
-            "DateTime::ToMicroseconds(column_name)"
+            "DateTime::ToMicroseconds(column_name)",
         )
         self.assertEqual(
-            connection.ops.format_for_duration_arithmetic("Timestamp('2019-01-01T01:02:03.456789Z')"),
-            "DateTime::ToMicroseconds(Timestamp('2019-01-01T01:02:03.456789Z'))"
+            connection.ops.format_for_duration_arithmetic(
+                "Timestamp('2019-01-01T01:02:03.456789Z')"
+            ),
+            "DateTime::ToMicroseconds(Timestamp('2019-01-01T01:02:03.456789Z'))",
         )
         self.assertEqual(
             connection.ops.format_for_duration_arithmetic(""),
-            "DateTime::ToMicroseconds()"
+            "DateTime::ToMicroseconds()",
         )
 
     def test_extraction(self):
-        sql_dt, params_dt = connection.ops.date_extract_sql(
-            "year", "column_name", []
-        )
+        sql_dt, params_dt = connection.ops.date_extract_sql("year", "column_name", [])
         sql_dttm, params_dttm = connection.ops.datetime_extract_sql(
             "hour", "column_name", [], tzname=None
         )
 
-        self.assertEqual(
-            sql_dt,
-            "DateTime::GetYear(column_name)"
-        )
-        self.assertEqual(
-            sql_dttm,
-            "DateTime::GetHour(column_name)"
-        )
+        self.assertEqual(sql_dt, "DateTime::GetYear(column_name)")
+        self.assertEqual(sql_dttm, "DateTime::GetHour(column_name)")
         self.assertListEqual(params_dt, [])
 
     def test_trunc(self):
-        sql_dt, params_dt = connection.ops.date_trunc_sql(
-            "year", "column_name", []
-        )
+        sql_dt, params_dt = connection.ops.date_trunc_sql("year", "column_name", [])
         sql_dttm, params_dttm = connection.ops.datetime_trunc_sql(
             "hour", "column_name", [], tzname=TZ_NAME
         )
 
-        self.assertEqual(
-            sql_dt,
-            "DateTime::StartOfYear(column_name)"
-        )
+        self.assertEqual(sql_dt, "DateTime::StartOfYear(column_name)")
         self.assertEqual(
             sql_dttm,
             "DateTime::StartOf((AddTimezone(column_name, 'Europe/Moscow')), "
-            "Interval('PT1H'))"
+            "Interval('PT1H'))",
         )
         self.assertListEqual(params_dt, [])
 
@@ -76,19 +68,19 @@ class TestDatabaseWrapper(SimpleTestCase):
         sql_dt, params = connection.ops.datetime_cast_date_sql(
             "DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z')))",
             [],
-            TZ_NAME
+            TZ_NAME,
         )
 
         sql_tm, params = connection.ops.datetime_cast_time_sql(
             "DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z')))",
             [],
-            TZ_NAME
+            TZ_NAME,
         )
         self.assertEqual(
             sql_dt,
             "cast(AddTimezone(DateTime::MakeDatetime("
             "DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z'))), "
-            "'Europe/Moscow') as date)"
+            "'Europe/Moscow') as date)",
         )
 
         self.assertEqual(
@@ -96,38 +88,26 @@ class TestDatabaseWrapper(SimpleTestCase):
             "DateTime::Format('%H:%M:%S %Z')"
             "(AddTimezone(DateTime::MakeDatetime"
             "(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z'))), "
-            "'Europe/Moscow'))"
+            "'Europe/Moscow'))",
         )
         self.assertListEqual(params, [])
 
     def test_quote_name(self):
-        self.assertEqual(connection.ops.quote_name(
-            "table_name"), "`table_name`"
+        self.assertEqual(connection.ops.quote_name("table_name"), "`table_name`")
+        self.assertEqual(connection.ops.quote_name("`table_name`"), "`table_name`")
+        self.assertEqual(
+            connection.ops.quote_name("table name with  spaces"),
+            "`table name with  spaces`",
         )
-        self.assertEqual(connection.ops.quote_name(
-            "`table_name`"), "`table_name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table name with  spaces"), "`table name with  spaces`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table-name"), "`table-name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table.name"), "`table.name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table_name!"), "`table_name!`"
-        )
+        self.assertEqual(connection.ops.quote_name("table-name"), "`table-name`")
+        self.assertEqual(connection.ops.quote_name("table.name"), "`table.name`")
+        self.assertEqual(connection.ops.quote_name("table_name!"), "`table_name!`")
 
     def test_regex_lookup(self):
-        self.assertEqual(
-            connection.ops.regex_lookup("regex"),
-            "%s REGEXP %s"
-        )
+        self.assertEqual(connection.ops.regex_lookup("regex"), "%s REGEXP %s")
         self.assertEqual(
             connection.ops.regex_lookup("iregex"),
-            "Unicode::ToLower(%s) REGEXP Unicode::ToLower(%s)"
+            "Unicode::ToLower(%s) REGEXP Unicode::ToLower(%s)",
         )
         with self.assertRaises(NotImplementedError):
             connection.ops.regex_lookup("invalid_type")
@@ -147,53 +127,38 @@ class TestDatabaseWrapper(SimpleTestCase):
         expected_result = [
             "SELECT * FROM users;",
             "UPDATE users SET active = TRUE WHERE id = 1;",
-            "DELETE FROM users WHERE id = 2;"
+            "DELETE FROM users WHERE id = 2;",
         ]
 
         result = connection.ops.prepare_sql_script(sql_script)
         self.assertEqual(result, expected_result)
 
     def test_sql_flush(self):
-        from django.db import models
-
-        class Person(models.Model):
-            first_name = models.CharField(max_length=20)
-            last_name = models.CharField(max_length=20)
-
-            def __str__(self):
-                return f"{self.first_name} {self.last_name}"
-
-        class Tag(models.Model):
-            name = models.CharField(max_length=30)
-
-            def __str__(self):
-                return f"{self.name}"
-
         self.assertEqual(
             connection.ops.sql_flush(
                 no_style(),
                 [Person._meta.db_table, Tag._meta.db_table],
             ),
             [
-                "DELETE FROM `backend_person`;",
-                "DELETE FROM `backend_tag`;",
+                "DELETE FROM `backends_person`;",
+                "DELETE FROM `backends_tag`;",
             ],
         )
 
     # def test_last_insert_id(self):
     #     with connection.cursor() as cursor:
-    #         cursor.execute(
+    #         cursor.execute_scheme(
     #             "CREATE TABLE IF NOT EXISTS "
     #             "test_table (id SERIAL, name string, PRIMARY KEY (id));"
     #         )
-    #         cursor.execute(
+    #         cursor.execute_scheme(
     #             "INSERT INTO test_table (name) VALUES ('Test Name');"
     #         )
     #
     #     last_id = connection.ops.last_insert_id(cursor, 'test_table', 'id')
     #     self.assertIsInstance(last_id, int)
     #     self.assertTrue(last_id > 0)
-    #
+
     # def test_last_executed_query(self):
     #     # last_executed_query() interpolate all parameters, in most cases it is
     #     # not equal to QuerySet.query.

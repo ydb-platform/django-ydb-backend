@@ -18,10 +18,10 @@ def get_test_modules():
     with os.scandir(RUNTESTS_DIR) as entries:
         for f in entries:
             if (
-                    "." in f.name
-                    or Path(f.name).name in SKIP_DIRS
-                    or f.is_file()
-                    or not (Path(f.path) / "__init__.py").exists()
+                "." in f.name
+                or Path(f.name).name in SKIP_DIRS
+                or f.is_file()
+                or not (Path(f.path) / "__init__.py").exists()
             ):
                 continue
             test_module = f.name

@@ -24,7 +24,7 @@ from .schema import DatabaseSchemaEditor
 from .validation import DatabaseValidation
 
 
-def db_api_version():
+def _db_api_version():
     if hasattr(Database, "version"):
         version = Database.version.VERSION.split(".")
         return tuple(map(int, version))
@@ -32,6 +32,10 @@ def db_api_version():
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
+    """
+    Represent a database connection.
+    """
+
     vendor = "ydb"
     display_name = "YDB"
     # This dictionary maps Field objects to their associated YDB column
@@ -39,18 +43,19 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
-        "AutoField": "Int32",
-        "BigAutoField": "Int64",
+        "AutoField": "Uint32",
+        "BigAutoField": "Uint64",
         "BinaryField": "String",
         "BooleanField": "Bool",
-        "CharField": "Utf8",
+        "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
         "DateTimeField": "Datetime",
-        "DecimalField": "Decimal",
+        "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
         "DurationField": "Interval",
         "FileField": "String",
         "FilePathField": "String",
-        "FloatField": "Double",
+        "FloatField": "Float",
+        "DoubleField": "Double",
         "IntegerField": "Int32",
         "BigIntegerField": "Int64",
         "IPAddressField": "Utf8",
@@ -61,12 +66,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "PositiveBigIntegerField": "Uint64",
         "PositiveSmallIntegerField": "Uint16",
         "SlugField": "String",
-        "SmallAutoField": "Int16",
+        "SmallAutoField": "Uint16",
         "SmallIntegerField": "Int16",
         "TextField": "String",
         "TimeField": "Timestamp",
-        "UUIDField": "Utf8",
+        "UUIDField": "UUID",
         "JSONField": "Json",
+        "EnumField": "Enum",
     }
 
     operators = {
@@ -120,8 +126,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     ops_class = DatabaseOperations
     validation_class = DatabaseValidation
 
+    # def get_driver(self):
+    #     return self.connection._driver
+
     def get_table_names(self):
         return self.connection.get_table_names()
+
+    def get_describe(self, table_name):
+        return self.connection.describe(table_name)
 
     def get_database_version(self):
         """
@@ -140,12 +152,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             logger.warning(
                 f"Failed to get database version: {e}. Falling back to driver version."
             )
-            return db_api_version()
+            return _db_api_version()
         except DatabaseError as e:
             logger.error(f"Database error while getting version: {e}")
             raise
 
     def get_connection_params(self):
+        """
+        Return a dict of parameters suitable for get_new_connection.
+        """
         settings_dict = self.settings_dict
 
         if not settings_dict.get("HOST"):
@@ -181,6 +196,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return conn_params
 
     def get_new_connection(self, conn_params):
+        """
+        Open a connection to the database.
+        """
         try:
             logger.debug(f"Connecting to YDB with params: {conn_params}")
             connection = Database.connect(**conn_params)
@@ -193,12 +211,25 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return connection
 
     def create_cursor(self, name=None):
+        """
+        Create a cursor. Assume that a connection is established.
+        """
         return self.connection.cursor()
 
     def _set_autocommit(self, autocommit):
-        pass
+        """
+        Backend-specific implementation to enable or disable autocommit.
+        """
 
     def is_usable(self):
+        """
+        Test if the database connection is usable.
+
+        This method may assume that self.connection is not None.
+
+        Actual implementations should take care not to raise exceptions
+        as that may prevent Django from recycling unusable connections.
+        """
         if self.connection is None:
             return False
         try:
