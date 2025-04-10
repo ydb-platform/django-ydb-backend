@@ -83,7 +83,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     # TODO: WITH (STORE = %(store_type)s)
     sql_create_table = (
-         "CREATE TABLE %(table)s (%(definition)s, PRIMARY KEY (%(primary_key)s));"
+        "CREATE TABLE %(table)s (%(definition)s, PRIMARY KEY (%(primary_key)s));"
     )
     sql_delete_table = "DROP TABLE %(table)s;"
     sql_delete_column = "ALTER TABLE %(table)s DROP COLUMN %(column)s;"
@@ -210,9 +210,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         sql = self.sql_create_table % {
             "table": self.quote_name(model._meta.db_table),
             "definition": ", ".join(
-                str(attribute)
-                for attribute in column_sqls
-                if attribute
+                str(attribute) for attribute in column_sqls if attribute
             ),
             "primary_key": ", ".join(self.quote_name(field.column) for field in pk),
         }

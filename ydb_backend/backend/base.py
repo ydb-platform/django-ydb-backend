@@ -47,7 +47,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BigAutoField": "Uint64",
         "BinaryField": "String",
         "BooleanField": "Bool",
-        "CharField": "Utf8", # TODO: make the method limit the number of characters
+        "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
         "DateTimeField": "Datetime",
         "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",

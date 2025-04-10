@@ -25,7 +25,7 @@ def _create_table_desc_info(columns):
         sequence_info = FieldInfo(
             name=field.name,
             type_code=str(field.type),
-            display_size=None, # TODO: fill attributes with values
+            display_size=None,  # TODO: fill attributes with values
             internal_size=None,
             precision=None,
             scale=None,
@@ -39,24 +39,24 @@ def _create_table_desc_info(columns):
 
 def _create_table_info(table_scheme_entry):
     return TableInfo(
-            name=table_scheme_entry.name,
-            type="t", # TODO: how to find view type?
-        )
+        name=table_scheme_entry.name,
+        type="t",  # TODO: how to find view type?
+    )
 
 
 def _get_constraint_tuple(
-        columns,
-        is_primary_key,
-        is_unique,
-        foreign_key=None,
-        is_check=False,
-        is_index=True,
-        _type=None
+    columns,
+    is_primary_key,
+    is_unique,
+    foreign_key=None,
+    is_check=False,
+    is_index=True,
+    _type=None,
 ):
     return {
         "columns": columns,
         "primary_key": is_primary_key,
-        "unique": is_unique, # TODO: for indexes define
+        "unique": is_unique,  # TODO: for indexes define
         "foreign_key": foreign_key,
         "check": is_check,
         "index": is_index,
@@ -125,7 +125,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         order between databases.
         """
         return sorted(
-            ti.name for ti in self.get_table_list(cursor)
+            ti.name
+            for ti in self.get_table_list(cursor)
             if include_views or ti.type == "t"
         )
 

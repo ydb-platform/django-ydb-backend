@@ -27,51 +27,40 @@ class TestDatabaseOperations(SimpleTestCase):
     def test_format_for_duration_arithmetic(self):
         self.assertEqual(
             connection.ops.format_for_duration_arithmetic("column_name"),
-            "DateTime::ToMicroseconds(column_name)"
+            "DateTime::ToMicroseconds(column_name)",
         )
         self.assertEqual(
-            connection.ops.format_for_duration_arithmetic("Timestamp('2019-01-01T01:02:03.456789Z')"),
-            "DateTime::ToMicroseconds(Timestamp('2019-01-01T01:02:03.456789Z'))"
+            connection.ops.format_for_duration_arithmetic(
+                "Timestamp('2019-01-01T01:02:03.456789Z')"
+            ),
+            "DateTime::ToMicroseconds(Timestamp('2019-01-01T01:02:03.456789Z'))",
         )
         self.assertEqual(
             connection.ops.format_for_duration_arithmetic(""),
-            "DateTime::ToMicroseconds()"
+            "DateTime::ToMicroseconds()",
         )
 
     def test_extraction(self):
-        sql_dt, params_dt = connection.ops.date_extract_sql(
-            "year", "column_name", []
-        )
+        sql_dt, params_dt = connection.ops.date_extract_sql("year", "column_name", [])
         sql_dttm, params_dttm = connection.ops.datetime_extract_sql(
             "hour", "column_name", [], tzname=None
         )
 
-        self.assertEqual(
-            sql_dt,
-            "DateTime::GetYear(column_name)"
-        )
-        self.assertEqual(
-            sql_dttm,
-            "DateTime::GetHour(column_name)"
-        )
+        self.assertEqual(sql_dt, "DateTime::GetYear(column_name)")
+        self.assertEqual(sql_dttm, "DateTime::GetHour(column_name)")
         self.assertListEqual(params_dt, [])
 
     def test_trunc(self):
-        sql_dt, params_dt = connection.ops.date_trunc_sql(
-            "year", "column_name", []
-        )
+        sql_dt, params_dt = connection.ops.date_trunc_sql("year", "column_name", [])
         sql_dttm, params_dttm = connection.ops.datetime_trunc_sql(
             "hour", "column_name", [], tzname=TZ_NAME
         )
 
-        self.assertEqual(
-            sql_dt,
-            "DateTime::StartOfYear(column_name)"
-        )
+        self.assertEqual(sql_dt, "DateTime::StartOfYear(column_name)")
         self.assertEqual(
             sql_dttm,
             "DateTime::StartOf((AddTimezone(column_name, 'Europe/Moscow')), "
-            "Interval('PT1H'))"
+            "Interval('PT1H'))",
         )
         self.assertListEqual(params_dt, [])
 
@@ -79,19 +68,19 @@ class TestDatabaseOperations(SimpleTestCase):
         sql_dt, params = connection.ops.datetime_cast_date_sql(
             "DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z')))",
             [],
-            TZ_NAME
+            TZ_NAME,
         )
 
         sql_tm, params = connection.ops.datetime_cast_time_sql(
             "DateTime::MakeDatetime(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z')))",
             [],
-            TZ_NAME
+            TZ_NAME,
         )
         self.assertEqual(
             sql_dt,
             "cast(AddTimezone(DateTime::MakeDatetime("
             "DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z'))), "
-            "'Europe/Moscow') as date)"
+            "'Europe/Moscow') as date)",
         )
 
         self.assertEqual(
@@ -99,38 +88,26 @@ class TestDatabaseOperations(SimpleTestCase):
             "DateTime::Format('%H:%M:%S %Z')"
             "(AddTimezone(DateTime::MakeDatetime"
             "(DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z'))), "
-            "'Europe/Moscow'))"
+            "'Europe/Moscow'))",
         )
         self.assertListEqual(params, [])
 
     def test_quote_name(self):
-        self.assertEqual(connection.ops.quote_name(
-            "table_name"), "`table_name`"
+        self.assertEqual(connection.ops.quote_name("table_name"), "`table_name`")
+        self.assertEqual(connection.ops.quote_name("`table_name`"), "`table_name`")
+        self.assertEqual(
+            connection.ops.quote_name("table name with  spaces"),
+            "`table name with  spaces`",
         )
-        self.assertEqual(connection.ops.quote_name(
-            "`table_name`"), "`table_name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table name with  spaces"), "`table name with  spaces`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table-name"), "`table-name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table.name"), "`table.name`"
-        )
-        self.assertEqual(connection.ops.quote_name(
-            "table_name!"), "`table_name!`"
-        )
+        self.assertEqual(connection.ops.quote_name("table-name"), "`table-name`")
+        self.assertEqual(connection.ops.quote_name("table.name"), "`table.name`")
+        self.assertEqual(connection.ops.quote_name("table_name!"), "`table_name!`")
 
     def test_regex_lookup(self):
-        self.assertEqual(
-            connection.ops.regex_lookup("regex"),
-            "%s REGEXP %s"
-        )
+        self.assertEqual(connection.ops.regex_lookup("regex"), "%s REGEXP %s")
         self.assertEqual(
             connection.ops.regex_lookup("iregex"),
-            "Unicode::ToLower(%s) REGEXP Unicode::ToLower(%s)"
+            "Unicode::ToLower(%s) REGEXP Unicode::ToLower(%s)",
         )
         with self.assertRaises(NotImplementedError):
             connection.ops.regex_lookup("invalid_type")
@@ -150,7 +127,7 @@ class TestDatabaseOperations(SimpleTestCase):
         expected_result = [
             "SELECT * FROM users;",
             "UPDATE users SET active = TRUE WHERE id = 1;",
-            "DELETE FROM users WHERE id = 2;"
+            "DELETE FROM users WHERE id = 2;",
         ]
 
         result = connection.ops.prepare_sql_script(sql_script)

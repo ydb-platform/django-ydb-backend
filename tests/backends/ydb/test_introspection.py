@@ -41,7 +41,7 @@ class TestDatabaseIntrospection(TestCase):
                 scale=None,
                 null_ok=None,
                 default=None,
-                collation=None
+                collation=None,
             ),
             FieldInfo(
                 name="last_name",
@@ -52,7 +52,7 @@ class TestDatabaseIntrospection(TestCase):
                 scale=None,
                 null_ok=None,
                 default=None,
-                collation=None
+                collation=None,
             ),
             FieldInfo(
                 name="id",
@@ -63,7 +63,7 @@ class TestDatabaseIntrospection(TestCase):
                 scale=None,
                 null_ok=None,
                 default=None,
-                collation=None
+                collation=None,
             ),
             FieldInfo(
                 name="is_man",
@@ -73,7 +73,8 @@ class TestDatabaseIntrospection(TestCase):
                 precision=None,
                 scale=None,
                 null_ok=None,
-                default=None, collation=None
+                default=None,
+                collation=None,
             ),
             FieldInfo(
                 name="about",
@@ -84,7 +85,7 @@ class TestDatabaseIntrospection(TestCase):
                 scale=None,
                 null_ok=None,
                 default=None,
-                collation=None
+                collation=None,
             ),
             FieldInfo(
                 name="age",
@@ -95,14 +96,13 @@ class TestDatabaseIntrospection(TestCase):
                 scale=None,
                 null_ok=None,
                 default=None,
-                collation=None
-            )
+                collation=None,
+            ),
         ]
 
         with connection.cursor() as cursor:
             result = connection.introspection.get_table_description(
-                cursor,
-                "backends_person"
+                cursor, "backends_person"
             )
 
         self.assertEqual(result, expected_result)
@@ -124,14 +124,12 @@ class TestDatabaseIntrospection(TestCase):
             {"table_name": "backends_person", "column_name": "id"},
             {"table_name": "backends_person", "column_name": "is_man"},
             {"table_name": "backends_person", "column_name": "about"},
-            {"table_name": "backends_person", "column_name": "age"}
+            {"table_name": "backends_person", "column_name": "age"},
         ]
 
         with connection.cursor() as cursor:
             result = connection.introspection.get_sequences(
-                cursor,
-                "backends_person",
-                None
+                cursor, "backends_person", None
             )
 
         self.assertEqual(result, expected_result)
@@ -145,23 +143,20 @@ class TestDatabaseIntrospection(TestCase):
                 "unique": True,
                 "foreign_key": None,
                 "check": False,
-                "index": True, "type": None
+                "index": True,
+                "type": None,
             }
         }
 
         with connection.cursor() as cursor:
-            result = connection.introspection.get_constraints(
-                cursor,
-                "backends_person"
-            )
+            result = connection.introspection.get_constraints(cursor, "backends_person")
 
         self.assertEqual(result, expected_result)
 
     def test_get_primary_key_columns(self):
         with connection.cursor() as cursor:
             result = connection.introspection.get_primary_key_columns(
-                cursor,
-                "backends_multikeymodel"
+                cursor, "backends_multikeymodel"
             )
 
         self.assertEqual(["key_1", "key_2", "key_3"], result)

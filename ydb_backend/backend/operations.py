@@ -102,7 +102,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         "DateField": "CAST(%(expression)s AS Date)",
         "DateTimeField": "CAST(%(expression)s AS Datetime)",
         "DecimalField": "CAST(%(expression)s AS "
-                        "Decimal(%(max_digits)s, %(decimal_places)s))",
+        "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
         "FileField": "CAST(%(expression)s AS String)",
         "FilePathField": "CAST(%(expression)s AS String)",

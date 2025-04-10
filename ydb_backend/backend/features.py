@@ -73,7 +73,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # field it's introspected as.
     @cached_property
     def introspected_field_types(self):
-
         return {
             **super().introspected_field_types,
             "DateField": "DateField",
