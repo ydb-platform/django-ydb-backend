@@ -49,6 +49,8 @@ ignore = [
     "PT009", # We use Django asserts
     "S608", # Possible SQL injection vector through string-based query construction"
     # Ignores below could be deleted
+    "PYI024", # Use `typing.NamedTuple` instead of `collections.namedtuple`
+    "TID252", # Prefer absolute imports over relative imports from parent modules
     "PT027", # `pytest.raises` instead of unittest-style `assertRaises`
     "ERA001", # Found commented-out code
     "EM101", # Allow to use string literals in exceptions

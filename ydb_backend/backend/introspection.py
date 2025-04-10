@@ -1,63 +1,121 @@
+from collections import namedtuple
+
 from django.db.backends.base.introspection import BaseDatabaseIntrospection
+from django.db.backends.base.introspection import FieldInfo as BaseFieldInfo
+from django.db.backends.base.introspection import TableInfo as BaseTableInfo
+
+FieldInfo = namedtuple("FieldInfo", BaseFieldInfo._fields)
+TableInfo = namedtuple("TableInfo", BaseTableInfo._fields)
+
+
+def _create_sequences_info(table_name, column_name):
+    sequences = []
+    for field in column_name:
+        sequence_info = {
+            "table_name": table_name,
+            "column_name": field.name,
+        }
+        sequences.append(sequence_info)
+    return sequences
+
+
+def _create_table_desc_info(columns):
+    sequences = []
+    for field in columns:
+        sequence_info = FieldInfo(
+            name=field.name,
+            type_code=str(field.type),
+            display_size=None, # TODO: fill attributes with values
+            internal_size=None,
+            precision=None,
+            scale=None,
+            null_ok=None,
+            default=None,
+            collation=None,
+        )
+        sequences.append(sequence_info)
+    return sequences
+
+
+def _create_table_info(table_scheme_entry):
+    return TableInfo(
+            name=table_scheme_entry.name,
+            type="t", # TODO: how to find view type?
+        )
+
+
+def _get_constraint_tuple(
+        columns,
+        is_primary_key,
+        is_unique,
+        foreign_key=None,
+        is_check=False,
+        is_index=True,
+        _type=None
+):
+    return {
+        "columns": columns,
+        "primary_key": is_primary_key,
+        "unique": is_unique, # TODO: for indexes define
+        "foreign_key": foreign_key,
+        "check": is_check,
+        "index": is_index,
+        "type": _type,
+    }
 
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
+    """Encapsulate backends-specific introspection utilities."""
+
     data_types_reverse = {
-        "Uint64": "BigAutoField",
-        "Bool": "BooleanField",
-        "Utf8": "TextField",
-        "String": "BinaryField",
-        "Date": "DateField",
-        "Datetime": "DateTimeField",
-        "Timestamp": "DateTimeField",
-        "Interval": "DurationField",
-        "Double": "FloatField",
-        "Float": "FloatField",
-        "Int32": "IntegerField",
-        "Int64": "BigIntegerField",
-        "Uint32": "PositiveIntegerField",
-        "Uint16": "PositiveSmallIntegerField",
-        "Int16": "SmallIntegerField",
-        "Json": "JSONField",
-        "Decimal": "DecimalField",
+        0: "AutoField",
+        1: "BigAutoField",
+        2: "BinaryField",
+        3: "BooleanField",
+        4: "CharField",
+        5: "DateField",
+        6: "DateTimeField",
+        7: "DecimalField",
+        8: "DurationField",
+        9: "FileField",
+        10: "FilePathField",
+        11: "FloatField",
+        12: "DoubleField",
+        13: "IntegerField",
+        14: "BigIntegerField",
+        15: "IPAddressField",
+        16: "GenericIPAddressField",
+        17: "NullBooleanField",
+        18: "OneToOneField",
+        19: "PositiveIntegerField",
+        20: "PositiveBigIntegerField",
+        21: "PositiveSmallIntegerField",
+        22: "SlugField",
+        23: "SmallAutoField",
+        24: "SmallIntegerField",
+        25: "TextField",
+        26: "TimeField",
+        27: "UUIDField",
+        28: "JSONField",
+        29: "EnumField",
     }
 
     def get_field_type(self, data_type, description):
         """
-        Hook for a database backend to use the cursor description to
+        Hook for a database backends to use the cursor description to
         match a Django field type to a database column.
 
         For Oracle, the column data_type on its own is insufficient to
         distinguish between a FloatField and IntegerField, for example.
         """
+        return self.connection.data_types[data_type]
 
-        field_type = super().get_field_type(data_type, description)
-
-        if description.is_autofield:
-            if field_type == "IntegerField":
-                return "AutoField"
-            if field_type == "BigIntegerField":
-                return "BigAutoField"
-            if field_type == "SmallIntegerField":
-                return "SmallAutoField"
-
-        if data_type == "UUID":
-            return "UUIDField"
-
-        if data_type == "IPAddress":
-            return "GenericIPAddressField"
-
-        if data_type == "Json":
-            return "JSONField"
-
-        return field_type
-
-    def get_table_list(self, cursor):
+    def identifier_converter(self, name):
         """
-        Return an unsorted list of TableInfo named tuples of all tables and
-        views that exist in the database.
+        Apply a conversion to the identifier for the purposes of comparison.
+        The default identifier converter is for case sensitive comparison.
         """
-        return self.connection.get_table_names()
+        return name.lower()
 
     def table_names(self, cursor=None, include_views=False):
         """
@@ -66,34 +124,54 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         the database's ORDER BY here to avoid subtle differences in sorting
         order between databases.
         """
+        return sorted(
+            ti.name for ti in self.get_table_list(cursor)
+            if include_views or ti.type == "t"
+        )
 
-        return sorted(ti.name for ti in self.get_table_list(cursor) if include_views)
+    def get_table_list(self, cursor):
+        """
+        Return an unsorted list of TableInfo named tuples of all tables and
+        views that exist in the database.
+        """
+        result = []
+        table_names = self.connection.get_table_names()
+
+        for table_name in table_names:
+            table_scheme_entry = self.connection.get_describe(table_name)
+            result.append(_create_table_info(table_scheme_entry))
+        return result
 
     def get_table_description(self, cursor, table_name):
         """
         Return a description of the table with the DB-API cursor.description
         interface.
         """
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        return cursor.fetchall()
+        table_scheme_entry = self.connection.get_describe(table_name)
+        return _create_table_desc_info(table_scheme_entry.columns)
 
     def get_sequences(self, cursor, table_name, table_fields=()):
-        # YDB does not support sequences
-        return []
+        """
+        Return a list of introspected sequences for table_name. Each sequence
+        is a dict: {'table': <table_name>, 'column': <column_name>}. An optional
+        'name' key can be added if the backends supports named sequences.
+        """
+        table_scheme_entry = self.connection.get_describe(table_name)
+        return _create_sequences_info(table_name, table_scheme_entry.columns)
 
+    # Foreign keys are not supported in YDB
     def get_relations(self, cursor, table_name):
         """
         Return a dictionary of {field_name: (field_name_other_table, other_table)}
         representing all foreign keys in the given table.
         """
-        cursor.execute(f"PRAGMA foreign_key_list({table_name})")
-        relations = {}
-        for row in cursor.fetchall():
-            relations[row[3]] = (
-                row[2],
-                row[0],
-            )  # {field_name: (other_table, other_field)}
-        return relations
+
+    def get_primary_key_columns(self, cursor, table_name):
+        """
+        Return a list of primary key columns for the given table.
+        """
+        table_scheme_entry = self.connection.get_describe(table_name)
+        return table_scheme_entry.primary_key
 
     def get_constraints(self, cursor, table_name):
         """
@@ -115,26 +193,22 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         if they don't name constraints of a certain type (e.g. SQLite)
         """
         constraints = {}
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        for row in cursor.fetchall():
-            if row[5]:
-                constraints[f"primary_key_{row[1]}"] = {
-                    "columns": [row[1]],
-                    "primary_key": True,
-                    "unique": False,
-                    "foreign_key": None,
-                    "check": False,
-                    "index": False,
-                }
+        table_scheme_entry = self.connection.get_describe(table_name)
 
-        cursor.execute(f"PRAGMA index_list({table_name})")
-        for row in cursor.fetchall():
-            constraints[row[1]] = {
-                "columns": [row[2]],
-                "primary_key": False,
-                "unique": row[3],
-                "foreign_key": None,
-                "check": False,
-                "index": True,
-            }
+        if table_scheme_entry.primary_key:
+            constraints["primary_key"] = _get_constraint_tuple(
+                table_scheme_entry.primary_key,
+                True,
+                True,
+            )
+
+        for index in table_scheme_entry.indexes:
+            index_name = index.name
+            columns = index.index_columns
+            constraints[index_name] = _get_constraint_tuple(
+                columns,
+                False,
+                None,
+            )
+
         return constraints

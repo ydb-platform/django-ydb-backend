@@ -2,6 +2,9 @@ from django.core.management.color import no_style
 from django.db import connection
 from django.test import SimpleTestCase
 
+from ..models import Person
+from ..models import Tag
+
 TZ_NAME = "Europe/Moscow"
 
 LOOKUP_TYPES = [
@@ -18,7 +21,7 @@ LOOKUP_TYPES = [
 ]
 
 
-class TestDatabaseWrapper(SimpleTestCase):
+class TestDatabaseOperations(SimpleTestCase):
     databases = {"default"}
 
     def test_format_for_duration_arithmetic(self):
@@ -154,46 +157,31 @@ class TestDatabaseWrapper(SimpleTestCase):
         self.assertEqual(result, expected_result)
 
     def test_sql_flush(self):
-        from django.db import models
-
-        class Person(models.Model):
-            first_name = models.CharField(max_length=20)
-            last_name = models.CharField(max_length=20)
-
-            def __str__(self):
-                return f"{self.first_name} {self.last_name}"
-
-        class Tag(models.Model):
-            name = models.CharField(max_length=30)
-
-            def __str__(self):
-                return f"{self.name}"
-
         self.assertEqual(
             connection.ops.sql_flush(
                 no_style(),
                 [Person._meta.db_table, Tag._meta.db_table],
             ),
             [
-                "DELETE FROM `backend_person`;",
-                "DELETE FROM `backend_tag`;",
+                "DELETE FROM `backends_person`;",
+                "DELETE FROM `backends_tag`;",
             ],
         )
 
     # def test_last_insert_id(self):
     #     with connection.cursor() as cursor:
-    #         cursor.execute(
+    #         cursor.execute_scheme(
     #             "CREATE TABLE IF NOT EXISTS "
     #             "test_table (id SERIAL, name string, PRIMARY KEY (id));"
     #         )
-    #         cursor.execute(
+    #         cursor.execute_scheme(
     #             "INSERT INTO test_table (name) VALUES ('Test Name');"
     #         )
     #
     #     last_id = connection.ops.last_insert_id(cursor, 'test_table', 'id')
     #     self.assertIsInstance(last_id, int)
     #     self.assertTrue(last_id > 0)
-    #
+
     # def test_last_executed_query(self):
     #     # last_executed_query() interpolate all parameters, in most cases it is
     #     # not equal to QuerySet.query.

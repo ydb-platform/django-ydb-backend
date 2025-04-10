@@ -24,11 +24,11 @@ class TestDatabaseWrapper(SimpleTestCase):
         self.assertTrue(hasattr(new_connection, "cursor"))
 
     def test_create_cursor(self):
-        cursor = connection.create_cursor()
-        self.assertTrue(hasattr(cursor, "execute"))
-        cursor.execute("SELECT 10")
-        result = cursor.fetchone()
-        self.assertEqual(result, (10,))
+        with connection.cursor() as cursor:
+            self.assertTrue(hasattr(cursor, "execute"))
+            cursor.execute("SELECT 10")
+            result = cursor.fetchone()
+            self.assertEqual(result, (10,))
 
     def test_is_usable(self):
         self.assertTrue(connection.is_usable())
