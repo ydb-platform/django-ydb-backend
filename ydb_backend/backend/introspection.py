@@ -198,18 +198,18 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
         if table_scheme_entry.primary_key:
             constraints["primary_key"] = _get_constraint_tuple(
-                table_scheme_entry.primary_key,
-                True,
-                True,
+                columns=table_scheme_entry.primary_key,
+                is_primary_key=True,
+                is_unique=True,
             )
 
         for index in table_scheme_entry.indexes:
             index_name = index.name
             columns = index.index_columns
             constraints[index_name] = _get_constraint_tuple(
-                columns,
-                False,
-                None,
+                columns=columns,
+                is_primary_key=False,
+                is_unique=None,
             )
 
         return constraints
