@@ -526,13 +526,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         self.returning_fields = returning_fields
         with self.connection.cursor() as cursor:
             sql, params = self.as_sql()
-            try:
-                cursor.execute(sql, params)
-            except Exception:
-                # Ensure transaction is properly closed
-                if self.connection.in_atomic_block:
-                    self.connection.set_rollback(True)
-                raise
+            cursor.execute(sql, params)
             if hasattr(cursor, "rowcount") and cursor.rowcount == -1:
                 cursor.rowcount = 1
             return cursor.rowcount
