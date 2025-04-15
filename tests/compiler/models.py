@@ -30,3 +30,39 @@ class SimpleItem(models.Model):
 
     def __str__(self):
         return f"{self.code} {self.category} {self.quantity} {self.in_stock}"
+
+
+class SmartHomeDevice(models.Model):
+    name = models.CharField(
+        max_length=255,
+    )
+    device_type = models.CharField(
+        max_length=100,
+        choices=[
+            "LIGHT",
+            "THERMOSTAT",
+            "SECURITY",
+            "APPLIANCE",
+            "MULTI",
+        ],
+    )
+    room = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+    ip_address = models.GenericIPAddressField(
+        primary_key=True,
+    )
+    mac_address = models.CharField(
+        max_length=17,
+        unique=True,
+    )
+    status = models.BooleanField(
+        default=True,
+    )
+
+    def __str__(self):
+        return (
+            f"{self.name} {self.device_type} {self.room} "
+            f"{self.ip_address} {self.mac_address} {self.status}"
+        )
