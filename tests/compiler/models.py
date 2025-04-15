@@ -38,13 +38,13 @@ class SmartHomeDevice(models.Model):
     )
     device_type = models.CharField(
         max_length=100,
-        choices=[
-            "LIGHT",
-            "THERMOSTAT",
-            "SECURITY",
-            "APPLIANCE",
-            "MULTI",
-        ],
+        DEVICE_TYPE_CHOICES=[
+            ("LIGHT", "Light"),
+            ("THERMOSTAT", "Thermostat"),
+            ("SECURITY", "Security"),
+            ("APPLIANCE", "Appliance"),
+            ("MULTI", "Multi-functional device"),
+        ]
     )
     room = models.CharField(
         max_length=100,
