@@ -5,7 +5,8 @@ from django.core.exceptions import FullResultSet
 from django.db import NotSupportedError
 from django.db.models.expressions import RawSQL
 from django.db.models.sql import compiler
-from django.db.models.sql.compiler import SQLCompiler, SQLAggregateCompiler
+from django.db.models.sql.compiler import SQLAggregateCompiler
+from django.db.models.sql.compiler import SQLCompiler
 from django.db.models.sql.query import Query
 
 _ydb_types = {
@@ -109,9 +110,8 @@ class SQLCompiler(SQLCompiler):
             features = self.connection.features
             if combinator:
                 if not getattr(features, f"supports_select_{combinator}"):
-                    raise NotSupportedError(
-                        f"{combinator} is not supported on this database backend."
-                    )
+                    msg = f"{combinator} is not supported on this database backend."
+                    raise NotSupportedError(msg)
                 result, params = self.get_combinator_sql(
                     combinator, self.query.combinator_all
                 )
@@ -164,10 +164,7 @@ class SQLCompiler(SQLCompiler):
                 out_cols = []
                 for _, (s_sql, s_params), alias in self.select + extra_select:
                     if alias:
-                        s_sql = "%s AS %s" % (
-                            s_sql,
-                            self.connection.ops.quote_name(alias),
-                        )
+                        s_sql = f"{s_sql} AS {self.connection.ops.quote_name(alias)}"
                     params.extend(s_params)
                     out_cols.append(s_sql)
 
@@ -180,7 +177,7 @@ class SQLCompiler(SQLCompiler):
                 params.extend(f_params)
 
                 if where:
-                    result.append("WHERE %s" % where)
+                    result.append(f"WHERE {where}")
                     params.extend(w_params)
 
                 grouping = []
@@ -193,13 +190,13 @@ class SQLCompiler(SQLCompiler):
                             "annotate() + distinct(fields) is not implemented."
                         )
                     order_by = order_by or self.connection.ops.force_no_ordering()
-                    result.append("GROUP BY %s" % ", ".join(grouping))
+                    result.append(f"GROUP BY {', '.join(grouping)}")
                     if self._meta_ordering:
                         order_by = None
                 if having:
                     if not grouping:
                         result.extend(self.connection.ops.force_group_by())
-                    result.append("HAVING %s" % having)
+                    result.append(f"HAVING {having}")
                     params.extend(h_params)
 
             if self.query.explain_info:
@@ -216,7 +213,7 @@ class SQLCompiler(SQLCompiler):
                 for _, (o_sql, o_params, _) in order_by:
                     ordering.append(o_sql)
                     params.extend(o_params)
-                order_by_sql = "ORDER BY %s" % ", ".join(ordering)
+                order_by_sql = f"ORDER BY {', '.join(ordering)}"
                 if combinator and features.requires_compound_order_by_subquery:
                     result = ["SELECT * FROM (", *result, ")", order_by_sql]
                 else:
@@ -238,14 +235,11 @@ class SQLCompiler(SQLCompiler):
                 # to exclude extraneous selects.
                 sub_selects = []
                 sub_params = []
-                for index, (select, _, alias) in enumerate(self.select, start=1):
+                for _index, (select, _, alias) in enumerate(self.select, start=1):
                     if alias:
                         sub_selects.append(
-                            "%s.%s"
-                            % (
-                                self.connection.ops.quote_name("subquery"),
-                                self.connection.ops.quote_name(alias),
-                            )
+                            f"{self.connection.ops.quote_name('subquery')}."
+                            f"{self.connection.ops.quote_name(alias)}"
                         )
                     else:
                         select_clone = select.relabeled_clone(
@@ -257,11 +251,8 @@ class SQLCompiler(SQLCompiler):
                         sub_selects.append(subselect)
                         sub_params.extend(subparams)
                 sql, params = (
-                    "SELECT %s FROM (%s) subquery"
-                    % (
-                        ", ".join(sub_selects),
-                        " ".join(result),
-                    ),
+                    f"SELECT {', '.join(sub_selects)} "
+                    f"FROM ({' '.join(result)}) subquery",
                     tuple(sub_params + params),
                 )
 
@@ -295,9 +286,9 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         insert_statement = self.connection.ops.insert_statement(
             on_conflict=self.query.on_conflict,
         )
-        result = ["%s %s" % (insert_statement, qn(opts.db_table))]
+        result = [f"{insert_statement} {qn(opts.db_table)}"]
         fields = self.query.fields or [opts.pk]
-        result.append("(%s)" % ", ".join(qn(f.column) for f in fields))
+        result.append(f"({', '.join(qn(f.column) for f in fields)})")
 
         if self.query.fields:
             value_rows = [
@@ -319,7 +310,7 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         # necessary, and it should be possible to use placeholders and
         # expressions in bulk inserts too.
         can_bulk = (
-            not self.returning_fields and self.connection.features.has_bulk_insert
+                not self.returning_fields and self.connection.features.has_bulk_insert
         )
 
         placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
@@ -336,16 +327,17 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
             return [(" ".join(result), params)]
         return [
-            (" ".join(result + ["VALUES (%s)" % ", ".join(p)]), vals)
+            (" ".join([*result, f"VALUES ({', '.join(p)})"]), vals)
             for p, vals in zip(placeholder_rows, param_rows)
         ]
 
     def execute_sql(self, returning_fields=None):
-        assert not (
-            returning_fields
-            and len(self.query.objs) != 1
-            and not self.connection.features.can_return_rows_from_bulk_insert
-        )
+        if returning_fields and len(self.query.objs) != 1:
+            raise ValueError(
+                "Invalid state: returning_fields requires "
+                "exactly one object in query.objs"
+            )
+
         opts = self.query.get_meta()
         self.returning_fields = returning_fields
 
@@ -355,8 +347,8 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             if not self.returning_fields:
                 return []
             if (
-                self.connection.features.can_return_rows_from_bulk_insert
-                and len(self.query.objs) > 1
+                    self.connection.features.can_return_rows_from_bulk_insert
+                    and len(self.query.objs) > 1
             ):
                 rows = self.connection.ops.fetch_returned_insert_rows(cursor)
                 cols = [field.get_col(opts.db_table) for field in self.returning_fields]
@@ -380,7 +372,7 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
 class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
     def _as_sql(self, query):
         columns = []
-        delete = "DELETE FROM %s" % self.quote_name_unless_alias(query.base_table)
+        delete = f"DELETE FROM {self.quote_name_unless_alias(query.base_table)}"
 
         try:
             where, params = self.compile(query.where)
@@ -413,8 +405,8 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
         parameters.
         """
         if self.single_alias and (
-            self.connection.features.delete_can_self_reference_subquery
-            or not self.contains_self_reference_subquery
+                self.connection.features.delete_can_self_reference_subquery
+                or not self.contains_self_reference_subquery
         ):
             return self._as_sql(self.query)
         innerq = self.query.clone()
@@ -427,7 +419,7 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
             # Force the materialization of the inner query to allow reference
             # to the target table on MySQL.
             sql, params = innerq.get_compiler(connection=self.connection).as_sql()
-            innerq = RawSQL("SELECT * FROM (%s) subquery" % sql, params)
+            innerq = RawSQL(f"SELECT * FROM ({sql}) subquery", params)
         outerq.add_filter("pk__in", innerq)
         return self._as_sql(outerq)
 
@@ -443,30 +435,33 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
             return "", ()
         qn = self.quote_name_unless_alias
         values, update_params = [], []
-        for field, model, val in self.query.values:
+        for field, _model, val in self.query.values:
             if hasattr(val, "resolve_expression"):
                 val = val.resolve_expression(
                     self.query, allow_joins=False, for_save=True
                 )
                 if val.contains_aggregate:
-                    raise FieldError(
-                        "Aggregate functions are not allowed in this query "
-                        "(%s=%r)." % (field.name, val)
+                    error_message = (
+                        f"Aggregate functions are not allowed in this query "
+                        f"({field.name}={val!r})."
                     )
+                    raise FieldError(error_message)
                 if val.contains_over_clause:
-                    raise FieldError(
-                        "Window expressions are not allowed in this query "
-                        "(%s=%r)." % (field.name, val)
+                    error_message = (
+                        f"Window expressions are not allowed in this query "
+                        f"({field.name}={val!r})."
                     )
+                    raise FieldError(error_message)
             elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
                     val = val.prepare_database_save(field)
                 else:
-                    raise TypeError(
-                        "Tried to update field %s with a model instance, %r. "
-                        "Use a value compatible with %s."
-                        % (field, val, field.__class__.__name__)
+                    error_message = (
+                        f"Tried to update field {field} "
+                        f"with a model instance, {val!r}. "
+                        f"Use a value compatible with {field.__class__.__name__}."
                     )
+                    raise TypeError(error_message)
             val = field.get_db_prep_save(val, connection=self.connection)
 
             # Getting the placeholder for the field.
@@ -477,17 +472,17 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
             name = field.column
             if hasattr(val, "as_sql"):
                 sql, params = self.compile(val)
-                values.append("%s = %s" % (qn(name), placeholder % sql))
+                values.append(f"{qn(name)} = {placeholder % sql}")
                 update_params.extend(params)
             elif val is not None:
-                values.append("%s = %s" % (qn(name), placeholder))
+                values.append(f"{qn(name)} = {placeholder}")
                 update_params.append(val)
             else:
-                values.append("%s = NULL" % qn(name))
+                values.append(f"{qn(name)} = NULL")
         table = self.query.base_table
 
         result = [
-            "UPDATE %s SET" % qn(table),
+            f"UPDATE {qn(table)} SET",
             ", ".join(values),
         ]
 
@@ -504,7 +499,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         except FullResultSet:
             params = []
         else:
-            result.append("WHERE %s" % where)
+            result.append(f"WHERE {where}")
 
         sql, params = " ".join(result), tuple(update_params + params)
         sql, placeholder_rows = _replace_placeholders(sql)
@@ -521,50 +516,20 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         return sql, modified_params
 
     # TODO: fix this method
-    # def execute_sql(self, result_type):
-    #     """
-    #     Execute the specified update. Return the number of rows affected by
-    #     the primary update query. The "primary update query" is the first
-    #     non-empty query that is executed. Row counts for any subsequent,
-    #     related queries are not available.
-    #     """
-    #     try:
-    #         raw_result = super().execute_sql(result_type)
-    #
-    #         if isinstance(raw_result, int):
-    #             return raw_result if raw_result >= 0 else 1
-    #
-    #         if hasattr(raw_result, "rowcount"):
-    #             if raw_result.rowcount == -1:
-    #                 raw_result.rowcount = 1
-    #             return raw_result
-    #
-    #         return 1
-    #
-    #     except Exception as e:
-    #         if "did not affect any rows" in str(e):
-    #             return 1
-    #         raise
-    def execute_sql(self, result_type):
+    def execute_sql(self, returning_fields=None):
         """
         Execute the specified update. Return the number of rows affected by
         the primary update query. The "primary update query" is the first
         non-empty query that is executed. Row counts for any subsequent,
         related queries are not available.
         """
-        cursor = super().execute_sql(result_type)
-        try:
-            rows = cursor.rowcount if cursor else 0
-            is_empty = cursor is None
-        finally:
-            if cursor:
-                cursor.close()
-        for query in self.query.get_related_updates():
-            aux_rows = query.get_compiler(self.using).execute_sql(result_type)
-            if is_empty and aux_rows:
-                rows = aux_rows
-                is_empty = False
-        return rows
+        self.returning_fields = returning_fields
+        with self.connection.cursor() as cursor:
+            sql, params = self.as_sql()
+            cursor.execute(sql, params)
+            if hasattr(cursor, "rowcount") and cursor.rowcount == -1:
+                cursor.rowcount = 1
+            return cursor.rowcount
 
 
 class SQLAggregateCompiler(SQLAggregateCompiler):

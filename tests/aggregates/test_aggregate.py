@@ -1,11 +1,4 @@
 from django.test import TestCase
-from django.db.models import Count, Sum, Avg, Max, Min
-from django.db.models import Subquery, OuterRef, Q
-from django.db.models import Model
-from django.db.models.sql.query import Query
-
-from ydb_backend.models.sql.compiler import SQLAggregateCompiler
-from .models import Car
 
 
 class TestAggregates(TestCase):
@@ -146,7 +139,6 @@ class TestAggregates(TestCase):
     #     self.assertEqual(toyota.brand_count_in_stock, 3)
     #     self.assertIsNone(
     #         toyota.brand_avg_price_high_speed
-    #     )  # У Toyota нет авто со speed > 220
     #     self.assertEqual(toyota.brand_min_price_black, 25000)
     #
     #     bmw = results["BMW"]
