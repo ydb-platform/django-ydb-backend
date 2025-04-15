@@ -1,11 +1,11 @@
 from django.db.models import Q
-from django.test import TestCase
+from django.test import TransactionTestCase
 
 from .models import Product
 from .models import SmartHomeDevice
 
 
-class TestUpdate(TestCase):
+class TestUpdate(TransactionTestCase):
     databases = {"default"}
 
     def test_filtered_update(self):
@@ -23,13 +23,6 @@ class TestUpdate(TestCase):
             price=199,
             stock=100,
         )
-        Product.objects.create(
-            sku="P3003",
-            name="Smart Watch",
-            category="Wearables",
-            price=299,
-            stock=30,
-        )
 
         Product.objects.filter(Q(category="Electronics") | Q(price__gt=900)).update(
             price=899
@@ -39,6 +32,14 @@ class TestUpdate(TestCase):
         self.assertEqual(Product.objects.get(sku="P2002").price, 199)
 
     def test_single_update(self):
+        Product.objects.create(
+            sku="P3003",
+            name="Smart Watch",
+            category="Wearables",
+            price=299,
+            stock=30,
+        )
+
         product = Product.objects.get(sku="P3003")
         product.stock = 25
         product.save(update_fields=["stock"])
