@@ -10,7 +10,7 @@ class TestDatabaseIntrospection(TestCase):
     def test_get_field_type(self):
         self.assertEqual(
             connection.introspection.get_field_type("AutoField", ""),
-            "Uint32",
+            "SERIAL",
         )
         self.assertEqual(
             connection.introspection.get_field_type("PositiveIntegerField", ""),
@@ -56,7 +56,7 @@ class TestDatabaseIntrospection(TestCase):
             ),
             FieldInfo(
                 name="id",
-                type_code="Uint32",
+                type_code="Int32",
                 display_size=None,
                 internal_size=None,
                 precision=None,

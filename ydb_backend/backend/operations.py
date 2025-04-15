@@ -89,12 +89,14 @@ class DatabaseOperations(BaseDatabaseOperations):
     performs ordering or calculates the ID of a recently-inserted row.
     """
 
+    compiler_module = "ydb_backend.models.sql.compiler"
+
     # Mapping of Field.get_internal_type() (typically the model field's class
     # name) to the data type to use for the Cast() function, if different from
     # DatabaseWrapper.data_types.
     cast_data_types = {
         "SmallAutoField": "CAST(%(expression)s AS Uint16)",
-        "AutoField": "CAST(%(expression)s AS Uint32)",
+        "AutoField": "CAST(%(expression)s AS Int32)",
         "BigAutoField": "CAST(%(expression)s AS Uint64)",
         "BinaryField": "CAST(%(expression)s AS String)",
         "BooleanField": "CAST(%(expression)s AS Bool)",
@@ -135,8 +137,6 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     # CharField data type if the max_length argument isn't provided.
     cast_char_field_without_max_length = "String"
-
-    # TODO: compiler_module = "ydb_backend.models.sql.compiler"
 
     # TODO: try to understand why this method is needed.
     def format_for_duration_arithmetic(self, sql):
@@ -326,13 +326,14 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         `pk_name` is the name of the primary-key column.
         """
-        query = "SELECT %s FROM %s ORDER BY %s DESC LIMIT 1"
-        params = (
-            self.quote_name(pk_name),
-            self.quote_name(table_name),
-            self.quote_name(pk_name),
-        )
-        cursor.execute(query % params)
+        query = "SELECT %(pk)s FROM %(table)s ORDER BY %(pk)s DESC LIMIT 1"
+
+        sql = query % {
+            "table": self.quote_name(table_name),
+            "pk": pk_name,
+        }
+
+        cursor.execute(sql)
         return cursor.fetchone()[0]
 
     # TODO: Double check

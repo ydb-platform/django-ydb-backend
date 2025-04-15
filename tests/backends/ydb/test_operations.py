@@ -145,19 +145,15 @@ class TestDatabaseOperations(SimpleTestCase):
             ],
         )
 
-    # def test_last_insert_id(self):
-    #     with connection.cursor() as cursor:
-    #         cursor.execute_scheme(
-    #             "CREATE TABLE IF NOT EXISTS "
-    #             "test_table (id SERIAL, name string, PRIMARY KEY (id));"
-    #         )
-    #         cursor.execute_scheme(
-    #             "INSERT INTO test_table (name) VALUES ('Test Name');"
-    #         )
-    #
-    #     last_id = connection.ops.last_insert_id(cursor, 'test_table', 'id')
-    #     self.assertIsInstance(last_id, int)
-    #     self.assertTrue(last_id > 0)
+    def test_last_insert_id(self):
+        with connection.cursor() as cursor:
+            cursor.execute_scheme(
+                "INSERT INTO `backends_tag` (name) VALUES ('Test Name');"
+            )
+
+            last_id = connection.ops.last_insert_id(cursor, "backends_tag", "id")
+            self.assertIsInstance(last_id, int)
+            self.assertTrue(last_id > 0)
 
     # def test_last_executed_query(self):
     #     # last_executed_query() interpolate all parameters, in most cases it is

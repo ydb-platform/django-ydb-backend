@@ -13,16 +13,19 @@ class Person(models.Model):
         return (
             f"{self.first_name} "
             f"{self.last_name} "
-            f"{self.id} {self.is_man} "
-            f"{self.about} {self.age}"
+            f"{self.id}"
+            f"{self.is_man} "
+            f"{self.about}"
+            f"{self.age}"
         )
 
 
 class Tag(models.Model):
-    name = models.CharField(max_length=30, primary_key=True)
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=30)
 
     def __str__(self):
-        return f"{self.name}"
+        return f"{self.id}, {self.name}"
 
 
 class MultiKeyModel(models.Model):
