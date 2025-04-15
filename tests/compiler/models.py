@@ -33,18 +33,20 @@ class SimpleItem(models.Model):
 
 
 class SmartHomeDevice(models.Model):
+    DEVICE_TYPE_CHOICES = [
+        ("LIGHT", "Light"),
+        ("THERMOSTAT", "Thermostat"),
+        ("SECURITY", "Security"),
+        ("APPLIANCE", "Appliance"),
+        ("MULTI", "Multi-functional device"),
+    ]
+
     name = models.CharField(
         max_length=255,
     )
     device_type = models.CharField(
         max_length=100,
-        DEVICE_TYPE_CHOICES=[
-            ("LIGHT", "Light"),
-            ("THERMOSTAT", "Thermostat"),
-            ("SECURITY", "Security"),
-            ("APPLIANCE", "Appliance"),
-            ("MULTI", "Multi-functional device"),
-        ]
+        choices=DEVICE_TYPE_CHOICES
     )
     room = models.CharField(
         max_length=100,
