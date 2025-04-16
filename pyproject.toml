@@ -62,7 +62,6 @@ ignore = [
     "PGH003", # Allow not to specify rule codes
     "PLR0913", # Allow to have many arguments in function definition
     "RUF012", # Allow not to annotate mutable class attributes
-    "S611", # can lead to SQL injection vulnerabilities
 ]
 select = ["ALL"]
 

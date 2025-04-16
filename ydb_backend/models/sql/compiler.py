@@ -443,7 +443,7 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
             # Force the materialization of the inner query to allow reference
             # to the target table on MySQL.
             sql, params = innerq.get_compiler(connection=self.connection).as_sql()
-            innerq = RawSQL(f"SELECT * FROM ({sql}) subquery", params)
+            innerq = RawSQL(f"SELECT * FROM ({sql}) subquery", params) # noqa: S611
         outerq.add_filter("pk__in", innerq)
         return self._as_sql(outerq)
 
