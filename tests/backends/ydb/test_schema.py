@@ -84,7 +84,6 @@ class TestDatabaseSchema(SimpleTestCase):
         self.assertTrue(len(row[0]) > 2)
 
     # def test_transaction_rollback(self):
-    #     # Проверяем, что при ошибке транзакция откатывается
     #     try:
     #         with transaction.atomic():
     #             self.schema.sql_create_table(
@@ -95,7 +94,6 @@ class TestDatabaseSchema(SimpleTestCase):
     #     except:
     #         pass
     #
-    #     # Проверяем, что таблица не была создана
     #     with connection.cursor() as cursor:
     #         cursor.execute(f"SELECT to_regclass('{self.test_table_name}');")
     #         result = cursor.fetchone()[0]
@@ -108,7 +106,6 @@ class TestDatabaseSchema(SimpleTestCase):
     #         "PRIMARY KEY": "(id1, id2)"
     #     })
     #
-    #     # Проверяем наличие составного первичного ключа
     #     with connection.cursor() as cursor:
     #         cursor.execute(f"""
     #             SELECT constraint_name
