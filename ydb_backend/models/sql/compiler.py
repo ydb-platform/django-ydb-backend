@@ -184,7 +184,7 @@ class SQLCompiler(SQLCompiler):
                 for _, (s_sql, s_params), alias in self.select + extra_select:
                     columns = columns + _extract_column_names(s_sql)
                     if alias:
-                        s_sql = f"{s_sql} AS {self.connection.ops.quote_name(alias)}"
+                        s_sql = f"{s_sql} AS {self.connection.ops.quote_name(alias)}"  # noqa: PLW2901
                     params.extend(s_params)
                     out_cols.append(s_sql)
 
@@ -461,7 +461,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         values, update_params = [], []
         for field, _model, val in self.query.values:
             if hasattr(val, "resolve_expression"):
-                val = val.resolve_expression(
+                val = val.resolve_expression(  # noqa: PLW2901
                     self.query, allow_joins=False, for_save=True
                 )
                 if val.contains_aggregate:
@@ -478,7 +478,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
                     raise FieldError(error_message)
             elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
-                    val = val.prepare_database_save(field)
+                    val = val.prepare_database_save(field)  # noqa: PLW2901
                 else:
                     error_message = (
                         f"Tried to update field {field} "
@@ -486,7 +486,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
                         f"Use a value compatible with {field.__class__.__name__}."
                     )
                     raise TypeError(error_message)
-            val = field.get_db_prep_save(val, connection=self.connection)
+            val = field.get_db_prep_save(val, connection=self.connection)  # noqa: PLW2901
 
             # Getting the placeholder for the field.
             if hasattr(field, "get_placeholder"):
