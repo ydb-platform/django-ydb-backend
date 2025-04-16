@@ -13,7 +13,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     delete_can_self_reference_subquery = False
 
     # Does the backend distinguish between '' and None?
-    interprets_empty_strings_as_nulls = True
+    interprets_empty_strings_as_nulls = False
 
     # Does the backend consider table names with different casing to
     # be equal?

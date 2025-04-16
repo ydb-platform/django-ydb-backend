@@ -1,7 +1,6 @@
 import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
-from django.utils.encoding import force_str
 
 DATE_PARAMS_EXTRACT = [
     "year",
@@ -104,7 +103,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         "DateField": "CAST(%(expression)s AS Date)",
         "DateTimeField": "CAST(%(expression)s AS Datetime)",
         "DecimalField": "CAST(%(expression)s AS "
-        "Decimal(%(max_digits)s, %(decimal_places)s))",
+                        "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
         "FileField": "CAST(%(expression)s AS String)",
         "FilePathField": "CAST(%(expression)s AS String)",
@@ -152,7 +151,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         """
         iven a lookup_type of 'year', 'month', or 'day', return the SQL that
-        truncates the given date or datetime field field_name to a date object
+        truncates the given date or datetime.py field field_name to a date object
         with only the given specificity.
 
         If `tzname` is provided, the given value is truncated in a specific
@@ -163,14 +162,14 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def datetime_cast_date_sql(self, sql, params, tzname):
         """
-        Return the SQL to cast a datetime value to date value.
+        Return the SQL to cast a datetime.py value to date value.
         """
         sql = _add_tzname(sql, tzname)
         return f"cast({sql} as date)", params
 
     def datetime_cast_time_sql(self, sql, params, tzname):
         """
-        Return the SQL to cast a datetime value to time value.
+        Return the SQL to cast a datetime.py value to time value.
         """
         sql = _add_tzname(sql, tzname)
         return f"DateTime::Format('%H:%M:%S %Z')({sql})", params
@@ -179,7 +178,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         """
         Given a lookup_type of 'year', 'month', 'day', 'hour', 'minute', or
         'second', return the SQL that extracts a value from the given
-        datetime field field_name.
+        datetime.py field field_name.
         """
         sql = _add_tzname(sql, tzname)
 
@@ -205,8 +204,8 @@ class DatabaseOperations(BaseDatabaseOperations):
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
         """
         Given a lookup_type of 'year', 'month', 'day', 'hour', 'minute', or
-        'second', return the SQL that truncates the given datetime field
-        field_name to a datetime object with only the given specificity.
+        'second', return the SQL that truncates the given datetime.py field
+        field_name to a datetime.py object with only the given specificity.
         """
         sql = _add_tzname(sql, tzname)
 
@@ -227,8 +226,8 @@ class DatabaseOperations(BaseDatabaseOperations):
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
         """
         Given a lookup_type of 'year', 'month', 'day', 'hour', 'minute', or
-        'second', return the SQL that truncates the given datetime field
-        field_name to a datetime object with only the given specificity.
+        'second', return the SQL that truncates the given datetime.py field
+        field_name to a datetime.py object with only the given specificity.
         """
         return self.datetime_trunc_sql(lookup_type, sql, params, tzname)
 
@@ -310,13 +309,19 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         # Convert params to contain string values.
         def to_string(s):
-            return force_str(s, strings_only=True, errors="replace")
+            return str(s)
 
         if params:
             if isinstance(params, (list, tuple)):
                 sql = sql % tuple(map(to_string, params))
-            elif isinstance(params, dict):
-                sql = sql % {k: to_string(v) for k, v in params.items()}
+            elif params and isinstance(params, dict):
+                formatted_sql = sql
+                for param, value in params.items():
+                    val = value[0] if isinstance(value, tuple) else value
+                    str_val = to_string(val)
+                    formatted_sql = formatted_sql.replace(param, str_val)
+                return formatted_sql
+
         return sql
 
     def last_insert_id(self, cursor, table_name, pk_name):
@@ -392,8 +397,8 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def adapt_datetimefield_value(self, value):
         """
-        Transform a datetime value to an object compatible with what is expected
-        by the backends driver for datetime columns.
+        Transform a datetime.py value to an object compatible with what is expected
+        by the backends driver for datetime.py columns.
         """
         return value
 

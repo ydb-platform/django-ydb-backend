@@ -1,3 +1,5 @@
+import re
+
 import ydb
 from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
@@ -39,6 +41,31 @@ _ydb_types = {
     "UUIDField": ydb.PrimitiveType.UUID,
     "JSONField": ydb.PrimitiveType.Json,
 }
+
+
+def _extract_column_names(sql):
+    sql = re.sub(r"'[^']*'", "", sql)
+    sql = re.sub(r'"[^"]*"', "", sql)
+    sql = re.sub(r"--.*?$", "", sql, flags=re.MULTILINE)
+    sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
+
+    pattern = r"""
+        (?:`\w+`\.)?
+        `(?P<column>\w+)`
+        \s*
+        (?:
+          <>|<=|>=|=|!=|
+          <|>|LIKE|IN|
+          IS(?:\s+NOT)?
+        )
+        \s*%s
+    """
+
+    columns = []
+    for match in re.finditer(pattern, sql, re.VERBOSE | re.IGNORECASE):
+        columns.append(match.group("column"))
+
+    return columns
 
 
 def _replace_placeholders(sql):
@@ -127,10 +154,6 @@ class SQLCompiler(SQLCompiler):
                     where, w_params = (
                         self.compile(self.where) if self.where is not None else ("", [])
                     )
-                    if len(where) > 0:
-                        column_part = where.split(".")[-1]
-                        column_name = column_part.split("`")[1]
-                        columns.append(column_name)
                 except EmptyResultSet:
                     if self.elide_empty:
                         raise
@@ -144,10 +167,6 @@ class SQLCompiler(SQLCompiler):
                         if self.having is not None
                         else ("", [])
                     )
-                    if len(having) > 0:
-                        column_part = having.split(".")[-1]
-                        column_name = column_part.split("`")[1]
-                        columns.append(column_name)
                 except FullResultSet:
                     having, h_params = "", []
                 result = ["SELECT"]
@@ -163,6 +182,7 @@ class SQLCompiler(SQLCompiler):
 
                 out_cols = []
                 for _, (s_sql, s_params), alias in self.select + extra_select:
+                    columns = columns + _extract_column_names(s_sql)
                     if alias:
                         s_sql = f"{s_sql} AS {self.connection.ops.quote_name(alias)}"
                     params.extend(s_params)
@@ -179,6 +199,9 @@ class SQLCompiler(SQLCompiler):
                 if where:
                     result.append(f"WHERE {where}")
                     params.extend(w_params)
+                    if len(where) > 0:
+                        col = re.findall(r"`\w+`\.`(\w+)`", where)
+                        columns = columns + col
 
                 grouping = []
                 for g_sql, g_params in group_by:
@@ -198,6 +221,9 @@ class SQLCompiler(SQLCompiler):
                         result.extend(self.connection.ops.force_group_by())
                     result.append(f"HAVING {having}")
                     params.extend(h_params)
+                    if len(having) > 0:
+                        col = re.findall(r"`\w+`\.`(\w+)`", having)
+                        columns = columns + col
 
             if self.query.explain_info:
                 result.insert(
@@ -326,10 +352,8 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         if can_bulk:
             result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
             return [(" ".join(result), params)]
-        return [
-            (" ".join([*result, f"VALUES ({', '.join(p)})"]), vals)
-            for p, vals in zip(placeholder_rows, param_rows)
-        ]
+        return [(" ".join([*result, f"VALUES ({', '.join(p)})"]), params)
+                for p, vals in zip(placeholder_rows, param_rows)]
 
     def execute_sql(self, returning_fields=None):
         if returning_fields and len(self.query.objs) != 1:
@@ -533,29 +557,28 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
 
 
 class SQLAggregateCompiler(SQLAggregateCompiler):
-    # def as_sql(self):
-    #     """
-    #     Create the SQL for this query. Return the SQL string and list of
-    #     parameters.
-    #     """
-    #     sql, params = [], []
-    #     for annotation in self.query.annotation_select.values():
-    #         ann_sql, ann_params = self.compile(annotation)
-    #         ann_sql, ann_params = annotation.select_format(self, ann_sql, ann_params)
-    #         sql.append(ann_sql)
-    #         params.extend(ann_params)
-    #     self.col_count = len(self.query.annotation_select)
-    #     sql = ", ".join(sql)
-    #     params = tuple(params)
-    #
-    #     inner_query_sql, inner_query_params = self.query.inner_query.get_compiler(
-    #         self.using,
-    #         elide_empty=self.elide_empty,
-    #     ).as_sql(with_col_aliases=True)
-    #     sql = "SELECT %s FROM (%s) subquery" % (sql, inner_query_sql)
-    #     params += inner_query_params
-    #     return sql, params
-    pass
+    def as_sql(self):
+        """
+        Create the SQL for this query. Return the SQL string and list of
+        parameters.
+        """
+        sql, params = [], []
+        for annotation in self.query.annotation_select.values():
+            ann_sql, ann_params = self.compile(annotation)
+            ann_sql, ann_params = annotation.select_format(self, ann_sql, ann_params)
+            sql.append(ann_sql)
+            params.extend(ann_params)
+        self.col_count = len(self.query.annotation_select)
+        sql = ", ".join(sql)
+        params = tuple(params)
+
+        inner_query_sql, inner_query_params = self.query.inner_query.get_compiler(
+            self.using,
+            elide_empty=self.elide_empty,
+        ).as_sql(with_col_aliases=True)
+        sql = f"SELECT {sql} FROM ({inner_query_sql}) subquery"
+        params += inner_query_params
+        return sql, params
 
 
 class SQLUpsertCompiler(SQLCompiler):
