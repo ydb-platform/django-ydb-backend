@@ -48,6 +48,9 @@ ignore = [
     "PLR0911", # Allow to have too many return statements
     "PT009", # We use Django asserts
     "S608", # Possible SQL injection vector through string-based query construction"
+    "C901", # `as_sql` is too complex (30 > 10)
+    "PLR0912", # Too many branches (33 > 12)
+    "PLR0915", # Too many statements (106 > 50)
     # Ignores below could be deleted
     "PYI024", # Use `typing.NamedTuple` instead of `collections.namedtuple`
     "TID252", # Prefer absolute imports over relative imports from parent modules

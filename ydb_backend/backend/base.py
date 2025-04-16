@@ -3,7 +3,6 @@ from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.base import logger
 from django.db.utils import DatabaseError
 from django.db.utils import OperationalError
-from django.db.utils import ProgrammingError
 
 try:
     import ydb_dbapi as Database  # noqa: N812
@@ -43,13 +42,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
-        "AutoField": "Uint32",
-        "BigAutoField": "Uint64",
+        "AutoField": "SERIAL",
+        "BigAutoField": "SERIAL",
         "BinaryField": "String",
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
         "DateTimeField": "Datetime",
+        # supports only Decimal(22,9)
         "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
         "DurationField": "Interval",
         "FileField": "String",
@@ -66,7 +66,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "PositiveBigIntegerField": "Uint64",
         "PositiveSmallIntegerField": "Uint16",
         "SlugField": "String",
-        "SmallAutoField": "Uint16",
+        "SmallAutoField": "SERIAL",
         "SmallIntegerField": "Int16",
         "TextField": "String",
         "TimeField": "Timestamp",
@@ -135,27 +135,31 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_describe(self, table_name):
         return self.connection.describe(table_name)
 
+    # TODO: try to find the db version
     def get_database_version(self):
-        """
-        Return a tuple of the database's version.
-        E.g. for ydb_version "23.4.11", return (23, 4, 11).
-        """
-        try:
-            with self.connection.cursor() as cursor:
-                cursor.execute("SELECT version()")
-                row = cursor.fetchone()
-                if row:
-                    parts = row[0].decode("utf-8").split("-")[0].split(".")
-                    return tuple(int(part) for part in parts)
-                return None
-        except (OperationalError, ProgrammingError) as e:
-            logger.warning(
-                f"Failed to get database version: {e}. Falling back to driver version."
-            )
-            return _db_api_version()
-        except DatabaseError as e:
-            logger.error(f"Database error while getting version: {e}")
-            raise
+        return 24, 3, 11
+
+        # """
+        # Return a tuple of the database's version.
+        # E.g. for ydb_version "23.4.11", return (23, 4, 11).
+        # """
+        # try:
+        #     with self.connection.cursor() as cursor:
+        #         cursor.execute("SELECT version()")
+        #         row = cursor.fetchone()
+        #         if row:
+        #             parts = row[0].decode("utf-8").split("-")[0].split(".")
+        #             return tuple(int(part) for part in parts)
+        #         return None
+        # except (OperationalError, ProgrammingError) as e:
+        #     logger.warning(
+        #         f"Failed to get database version: {e}. "
+        #         f"Falling back to driver version."
+        #     )
+        #     return _db_api_version()
+        # except DatabaseError as e:
+        #     logger.error(f"Database error while getting version: {e}")
+        #     raise
 
     def get_connection_params(self):
         """

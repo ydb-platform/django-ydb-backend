@@ -1,8 +1,11 @@
+import ydb
 from django.core.management.color import no_style
 from django.db import connection
 from django.test import SimpleTestCase
+from django.test import skipUnlessDBFeature
 
 from ..models import Person
+from ..models import Square
 from ..models import Tag
 
 TZ_NAME = "Europe/Moscow"
@@ -145,71 +148,38 @@ class TestDatabaseOperations(SimpleTestCase):
             ],
         )
 
-    # def test_last_insert_id(self):
-    #     with connection.cursor() as cursor:
-    #         cursor.execute_scheme(
-    #             "CREATE TABLE IF NOT EXISTS "
-    #             "test_table (id SERIAL, name string, PRIMARY KEY (id));"
-    #         )
-    #         cursor.execute_scheme(
-    #             "INSERT INTO test_table (name) VALUES ('Test Name');"
-    #         )
-    #
-    #     last_id = connection.ops.last_insert_id(cursor, 'test_table', 'id')
-    #     self.assertIsInstance(last_id, int)
-    #     self.assertTrue(last_id > 0)
+    def test_last_insert_id(self):
+        with connection.cursor() as cursor:
+            cursor.execute_scheme(
+                "INSERT INTO `backends_tag` (name) VALUES ('Test Name');"
+            )
 
-    # def test_last_executed_query(self):
-    #     # last_executed_query() interpolate all parameters, in most cases it is
-    #     # not equal to QuerySet.query.
-    #     for qs in (
-    #         Article.objects.filter(pk=1),
-    #         Article.objects.filter(pk__in=(1, 2), reporter__pk=3),
-    #         Article.objects.filter(
-    #             pk=1,
-    #             reporter__pk=9,
-    #         ).exclude(reporter__pk__in=[2, 1]),
-    #         Article.objects.filter(pk__in=list(range(20, 31))),
-    #     ):
-    #         sql, params = qs.query.sql_with_params()
-    #         with qs.query.get_compiler(DEFAULT_DB_ALIAS)\
-    #                 .execute_sql(CURSOR) as cursor:
-    #             self.assertEqual(
-    #                 cursor.db.ops.last_executed_query(cursor, sql, params),
-    #                 str(qs.query),
-    #             )
-    #
-    # @skipUnlessDBFeature("supports_paramstyle_pyformat")
-    # def test_last_executed_query_dict(self):
-    #     square_opts = Square._meta
-    #     sql = "INSERT INTO %s (%s, %s) VALUES" % (
-    #         connection.introspection.identifier_converter(square_opts.db_table),
-    #         connection.ops.quote_name(square_opts.get_field("root").column),
-    #         connection.ops.quote_name(square_opts.get_field("square").column),
-    #     )
-    #     with connection.cursor() as cursor:
-    #         params = [(2, 4)]
-    #         cursor.execute(sql, params)
-    #         self.assertEqual(
-    #             cursor.db.ops.last_executed_query(cursor, sql, params),
-    #             "%s %s" % (sql, ", ".join(map(str, params))),
-    #         )
-    #
-    # @skipUnlessDBFeature("supports_paramstyle_pyformat")
-    # def test_last_executed_query_params_dict(self):
-    #     square_opts = Square._meta
-    #     sql = "SELECT %s, %s FROM %s WHERE %s =" % (
-    #         connection.ops.quote_name(square_opts.get_field("root").column),
-    #         connection.ops.quote_name(square_opts.get_field("square").column),
-    #         connection.introspection.identifier_converter(square_opts.db_table),
-    #         connection.ops.quote_name(square_opts.get_field("root").column),
-    #     )
-    #     sql_with_param = f"{sql} %(root)s"
-    #     with connection.cursor() as cursor:
-    #         param_value = 2
-    #         params = {"root": param_value}
-    #         cursor.execute(sql_with_param, params)
-    #         self.assertEqual(
-    #             cursor.db.ops.last_executed_query(cursor, sql_with_param, params),
-    #             "%s %s" % (sql, param_value),
-    #         )
+            last_id = connection.ops.last_insert_id(cursor, "backends_tag", "id")
+            self.assertIsInstance(last_id, int)
+            self.assertTrue(last_id > 0)
+
+    @skipUnlessDBFeature("supports_paramstyle_pyformat")
+    def test_last_executed_query_dict(self):
+        square_opts = Square._meta
+        table_name = connection.introspection.identifier_converter(square_opts.db_table)
+        root_col = connection.ops.quote_name(square_opts.get_field("root").column)
+        square_col = connection.ops.quote_name(square_opts.get_field("square").column)
+
+        sql = f"INSERT INTO {table_name} ({root_col}, {square_col}) VALUES ($a, $b);"
+        with connection.cursor() as cursor:
+            params = {
+                "$a": (2, ydb.PrimitiveType.Int32),
+                "$b": (4, ydb.PrimitiveType.Uint32)
+            }
+            cursor.execute_scheme(sql, params)
+
+            param_values = {k: str(v[0]) for k, v in params.items()}
+            formatted_sql = sql
+
+            for param, value in param_values.items():
+                formatted_sql = formatted_sql.replace(param, value)
+
+            self.assertEqual(
+                cursor.db.ops.last_executed_query(cursor, sql, params),
+                formatted_sql
+            )

@@ -153,9 +153,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Don't perform the transactional DDL check if SQL is being collected
         # as it's not going to be executed anyway.
         if (
-            not self.collect_sql
-            and self.connection.in_atomic_block
-            and not self.connection.features.can_rollback_ddl
+                not self.collect_sql
+                and self.connection.in_atomic_block
+                and not self.connection.features.can_rollback_ddl
         ):
             raise TransactionManagementError(
                 "Executing DDL statements while in a transaction on databases "
@@ -235,6 +235,56 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             params.append(["pk", field])
         return sql, params
 
+    def add_field(self, model, field):
+        """
+        Create a field on a model. Usually involves adding a column
+        """
+        # Get the column's definition
+        definition, params = self.column_sql(model, field, include_default=True)
+        # It might not actually have a column behind it
+        if definition is None:
+            return
+        if col_type_suffix := field.db_type_suffix(connection=self.connection):
+            definition += f" {col_type_suffix}"
+
+        # Build the SQL and run it
+        sql = self.sql_create_column % {
+            "table": self.quote_name(model._meta.db_table),
+            "column": self.quote_name(field.name),
+            "definition": definition,
+        }
+
+        self.execute(sql, params or None)
+        # Add an index, if required
+        self.deferred_sql.extend(self._field_indexes_sql(model, field))
+
+    def remove_field(self, model, field):
+        """
+        Remove a field from a model.
+        """
+        sql = self.sql_delete_column % {
+            "table": self.quote_name(model._meta.db_table),
+            "column": self.quote_name(field.column),
+        }
+        self.execute(sql)
+
+    def alter_db_table(self, model, old_db_table, new_db_table):
+        """
+        Rename the table a model points to.
+        """
+        if old_db_table == new_db_table or (
+                self.connection.features.ignores_table_name_case
+                and old_db_table.lower() == new_db_table.lower()
+        ):
+            return
+        self.execute(
+            self.sql_rename_table
+            % {
+                "old_table": self.quote_name(old_db_table),
+                "new_table": self.quote_name(new_db_table),
+            }
+        )
+
     # def _create_index_sql(
     #         self,
     #         model,
@@ -284,33 +334,3 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     #         table=Table(model._meta.db_table, self.quote_name),
     #         name=self.quote_name(name),
     #     )
-    #
-    # def alter_db_table(self, model, old_db_table, new_db_table):
-    #     """
-    #     Rename the table a model points to.
-    #     """
-    #     if old_db_table == new_db_table or (
-    #             self.connection.features.ignores_table_name_case
-    #             and old_db_table.lower() == new_db_table.lower()
-    #     ):
-    #         return
-    #     self.execute(
-    #         self.sql_rename_table
-    #         % {
-    #             "old_table": self.quote_name(old_db_table),
-    #             "new_table": self.quote_name(new_db_table),
-    #         }
-    #     )
-    #
-    # def remove_field(self, model, field):
-    #     """
-    #     Remove a field from a model. Usually involves deleting a column,
-    #     but for M2Ms may involve deleting a table.
-    #     """
-    #     if field.many_to_many and field.remote_field.through._meta.auto_created:
-    #         return self.delete_model(field.remote_field.through)
-    #     sql = self.sql_delete_column % {
-    #         "table": self.quote_name(model._meta.db_table),
-    #         "column": self.quote_name(field.column),
-    #     }
-    #     self.execute(sql)
