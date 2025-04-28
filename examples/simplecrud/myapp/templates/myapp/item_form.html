@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ action }} Item</title>
+</head>
+<body>
+    <h1>{{ action }} Item</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">{{ action }}</button>
+        <a href="{% url 'item_list' %}"><button type="button">Cancel</button></a>
+    </form>
+</body>
+</html>
