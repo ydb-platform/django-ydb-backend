@@ -159,4 +159,4 @@ class TestDatabaseIntrospection(TestCase):
                 cursor, "backends_keymodel"
             )
 
-        self.assertEqual(['id'], result)
+        self.assertEqual(["id"], result)
