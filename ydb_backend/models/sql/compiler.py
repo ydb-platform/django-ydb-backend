@@ -115,7 +115,16 @@ def _generate_params_for_update(placeholder_rows, columns, field_types, params):
     modified_params = {}
 
     for i in range(len(placeholder_rows)):
-        modified_params[placeholder_rows[i]] = (params[i], _ydb_types[model_types[i]])
+        if str(model_types[i]) == "DateTimeField":
+            modified_params[placeholder_rows[i]] = (
+                int(params[i].timestamp()),
+                _ydb_types[model_types[i]]
+            )
+        else:
+            modified_params[placeholder_rows[i]] = (
+                params[i],
+                _ydb_types[model_types[i]]
+            )
 
     return modified_params
 
