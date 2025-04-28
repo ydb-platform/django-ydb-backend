@@ -84,5 +84,6 @@ if __name__ == "__main__":
         keepdb=options.keepdb,
         debug_sql=options.debug_sql,
     )
+
     failures = test_runner.run_tests(options.modules or modules)
     sys.exit(bool(failures))

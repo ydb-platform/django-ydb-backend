@@ -7,6 +7,7 @@ from enum import Enum
 from uuid import UUID
 
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.backends.ddl_references import Statement
 from django.db.transaction import TransactionManagementError
 
 logger = logging.getLogger("django.db.backends.schema")
@@ -199,11 +200,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 else:
                     params.append(element)
 
-            for element in model._meta.unique_together:
-                if field.column in element:
-                    pk.add(field)
-
             column_sqls.append(f"{self.quote_name(field.column)} {definition}")
+
+            # Autoincrement SQL (for backends with post table definition
+            # variant).
+            if field.get_internal_type() in (
+                    "AutoField",
+                    "BigAutoField",
+                    "SmallAutoField",
+            ):
+                autoinc_sql = self.connection.ops.autoinc_sql(
+                    model._meta.db_table, field.column
+                )
+                if autoinc_sql:
+                    self.deferred_sql.extend(autoinc_sql)
 
         pk = sorted(pk)
 
@@ -214,6 +224,13 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             ),
             "primary_key": ", ".join(self.quote_name(field.column) for field in pk),
         }
+
+        if model._meta.db_tablespace:
+            tablespace_sql = self.connection.ops.tablespace_sql(
+                model._meta.db_tablespace
+            )
+            if tablespace_sql:
+                sql += " " + tablespace_sql
 
         return sql, params
 
@@ -285,6 +302,62 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             }
         )
 
+    # not supported in YDB
+    def alter_unique_together(self, model, old_unique_together, new_unique_together):
+        """
+        Deal with a model changing its unique_together. The input
+        unique_togethers must be doubly-nested, not the single-nested
+        ["foo", "bar"] format.
+        """
+
+    # not supported in YDB
+    def _alter_column_null_sql(self, model, old_field, new_field):
+        """
+        Hook to specialize column null alteration.
+
+        Return a (sql, params) fragment to set a column to null or non-null
+        as required by new_field, or None if no changes are required.
+        """
+
+    def create_model(self, model):
+        """
+        Create a table and any accompanying indexes or unique constraints for
+        the given `model`.
+        """
+        sql, params = self.table_sql(model)
+        # Prevent using [] as params, in the case a literal '%' is used in the
+        # definition.
+        self.execute(sql, params or None)
+
+        # Add any field index and index_together's (deferred as SQLite
+        # _remake_table needs it).
+        self.deferred_sql.extend(self._model_indexes_sql(model))
+
+    def delete_model(self, model):
+        """Delete a model from the database."""
+
+        # Delete the table
+        self.execute(
+            self.sql_delete_table
+            % {
+                "table": self.quote_name(model._meta.db_table),
+            }
+        )
+        # Remove all deferred statements referencing the deleted table.
+        for sql in list(self.deferred_sql):
+            if isinstance(sql, Statement) and sql.references_table(
+                    model._meta.db_table
+            ):
+                self.deferred_sql.remove(sql)
+
+    # not supported in YDB
+    def add_constraint(self, model, constraint):
+        """Add a constraint to a model."""
+
+    # not supported in YDB
+    def remove_constraint(self, model, constraint):
+        """Remove a constraint from a model."""
+
     # def _create_index_sql(
     #         self,
     #         model,
@@ -334,3 +407,5 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     #         table=Table(model._meta.db_table, self.quote_name),
     #         name=self.quote_name(name),
     #     )
+    # def alter_index_together(self, model, old_index_together, new_index_together):
+    # def _delete_composed_index(self, model, fields, constraint_kwargs, sql):

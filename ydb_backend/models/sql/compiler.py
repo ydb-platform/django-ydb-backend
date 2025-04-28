@@ -92,10 +92,16 @@ def _generate_params(placeholder_rows, param_rows, model_types):
     result = {}
     for i in range(len(placeholder_rows)):
         for j in range(len(placeholder_rows[i])):
-            result[placeholder_rows[i][j]] = (
-                param_rows[i][j],
-                _ydb_types[model_types[j]],
-            )
+            if str(model_types[j]) == "DateTimeField":
+                result[placeholder_rows[i][j]] = (
+                    int(param_rows[i][j].timestamp()),
+                    _ydb_types[model_types[j]],
+                )
+            else:
+                result[placeholder_rows[i][j]] = (
+                    param_rows[i][j],
+                    _ydb_types[model_types[j]],
+                )
     return result
 
 

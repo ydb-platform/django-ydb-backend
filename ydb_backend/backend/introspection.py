@@ -98,6 +98,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         27: "UUIDField",
         28: "JSONField",
         29: "EnumField",
+        30: "EmailField",
     }
 
     def get_field_type(self, data_type, description):

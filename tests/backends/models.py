@@ -28,13 +28,10 @@ class Tag(models.Model):
         return f"{self.id}, {self.name}"
 
 
-class MultiKeyModel(models.Model):
-    key_1 = models.CharField(max_length=255, primary_key=True)
+class KeyModel(models.Model):
+    key_1 = models.CharField(max_length=255)
     key_2 = models.IntegerField()
     key_3 = models.CharField(max_length=255)
-
-    class Meta:
-        unique_together = ("key_1", "key_2", "key_3")
 
     def __str__(self):
         return f"{self.key_1}, {self.key_2}, {self.key_3}"

@@ -89,6 +89,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "TextField": "TextField",
             "UUIDField": "UUIDField",
             "EnumField": "EnumField",
+            "EmailField": "EmailField",
         }
 
     # Can the backend introspect the column order (ASC/DESC) for indexes?
