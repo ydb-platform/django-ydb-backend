@@ -73,6 +73,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "UUIDField": "UUID",
         "JSONField": "Json",
         "EnumField": "Enum",
+        "EmailField": "Utf8"
     }
 
     operators = {
@@ -196,6 +197,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params["connection_timeout"] = settings_dict["CONNECTION_TIMEOUT"]
         if settings_dict.get("REQUEST_TIMEOUT"):
             conn_params["request_timeout"] = settings_dict["REQUEST_TIMEOUT"]
+        if settings_dict.get("TIME_ZONE"):
+            conn_params["time_zone"] = settings_dict["TIME_ZONE"]
 
         return conn_params
 

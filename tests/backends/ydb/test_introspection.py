@@ -156,7 +156,7 @@ class TestDatabaseIntrospection(TestCase):
     def test_get_primary_key_columns(self):
         with connection.cursor() as cursor:
             result = connection.introspection.get_primary_key_columns(
-                cursor, "backends_multikeymodel"
+                cursor, "backends_keymodel"
             )
 
-        self.assertEqual(["key_1", "key_2", "key_3"], result)
+        self.assertEqual(["id"], result)

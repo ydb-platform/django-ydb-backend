@@ -1,4 +1,5 @@
 from django.db import connection
+from django.db import models
 from django.db.models import TextField
 from django.test import SimpleTestCase
 
@@ -9,11 +10,30 @@ from ..models import SimpleModel
 class TestDatabaseSchema(SimpleTestCase):
     databases = {"default"}
 
-    def test_sql_create_table(self):
-        tables = connection.introspection.table_names(include_views=True)
-        self.assertIn("backends_person", tables)
+    def test_create_model(self):
+        class Triangle(models.Model):
+            id = models.AutoField(primary_key=True)
+            side_a = models.FloatField()
+            side_b = models.FloatField()
+            side_c = models.FloatField()
+            type = models.TextField()
 
-    def test_sql_delete_table(self):
+            def __str__(self):
+                return (
+                    f"{self.id}, "
+                    f"{self.side_a}, "
+                    f"{self.side_b}, "
+                    f"{self.side_c}, "
+                    f"{self.type}"
+                )
+
+        with connection.schema_editor() as editor:
+            editor.create_model(Triangle)
+
+        tables = connection.introspection.table_names(include_views=True)
+        self.assertIn("backends_triangle", tables)
+
+    def test_sql_delete_model(self):
         with connection.schema_editor() as editor:
             editor.delete_model(SimpleModel)
 
