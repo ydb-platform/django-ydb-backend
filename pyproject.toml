@@ -26,7 +26,7 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv"]
+exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv", "examples"]
 line-length = 88
 target-version = "py39"
 src = ["ydb_backend", "tests"]

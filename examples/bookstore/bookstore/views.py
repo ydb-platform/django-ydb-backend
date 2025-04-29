@@ -43,7 +43,7 @@ def item_list(request):
     paginator = Paginator(books, 10)
     page_obj = paginator.get_page(page_number)
 
-    return render(request, "myapp/record_list.html", {
+    return render(request, "bookstore/record_list.html", {
         "items": page_obj,
         "search_query": search_query,
         "sort_field": sort_field.lstrip("-"),
@@ -61,7 +61,7 @@ def item_create(request):
             return redirect("item_list")
     else:
         form = BookStoreForm()
-    return render(request, "myapp/record_form.html", {"form": form, "action": "Create"})
+    return render(request, "bookstore/record_form.html", {"form": form, "action": "Create"})
 
 
 def item_update(request, pk):
@@ -73,7 +73,7 @@ def item_update(request, pk):
             return redirect("item_list")
     else:
         form = BookStoreForm(instance=item)
-    return render(request, "myapp/record_form.html", {"form": form, "action": "Update"})
+    return render(request, "bookstore/record_form.html", {"form": form, "action": "Update"})
 
 
 def item_delete(request, pk):
@@ -81,4 +81,4 @@ def item_delete(request, pk):
     if request.method == "POST":
         item.delete()
         return redirect("item_list")
-    return render(request, "myapp/record_confirm_delete.html", {"item": item})
+    return render(request, "bookstore/record_confirm_delete.html", {"item": item})
