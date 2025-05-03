@@ -3,8 +3,8 @@ from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.base import logger
 from django.db.utils import DatabaseError
 from django.db.utils import NotSupportedError
-from django.db.utils import ProgrammingError
 from django.db.utils import OperationalError
+from django.db.utils import ProgrammingError
 
 try:
     import ydb_dbapi as Database  # noqa: N812
@@ -168,16 +168,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         version of Django.
         """
         if (
-            self.features.minimum_database_version is not None
-            and self.get_database_version() != tuple(['main'])
+                self.features.minimum_database_version is not None
+                and self.get_database_version() != ("main",)
+                and self.get_database_version() < self.features.minimum_database_version
         ):
-            if self.get_database_version() < self.features.minimum_database_version:
-                db_version = ".".join(map(str, self.get_database_version()))
-                min_db_version = ".".join(map(str, self.features.minimum_database_version))
-                raise NotSupportedError(
-                    f"{self.display_name} {min_db_version} or later is required "
-                    f"(found {db_version})."
-                )
+            db_version = ".".join(map(str, self.get_database_version()))
+            min_db_version = ".".join(map(str, self.features.minimum_database_version))
+            error_msg = (
+                f"{self.display_name} {min_db_version} or later is required "
+                f"(found {db_version})."
+            )
+
+            raise NotSupportedError(error_msg)
 
     def get_connection_params(self):
         """
