@@ -94,9 +94,9 @@ class DatabaseOperations(BaseDatabaseOperations):
     # name) to the data type to use for the Cast() function, if different from
     # DatabaseWrapper.data_types.
     cast_data_types = {
-        "SmallAutoField": "CAST(%(expression)s AS Uint16)",
+        "SmallAutoField": "CAST(%(expression)s AS Int16)",
         "AutoField": "CAST(%(expression)s AS Int32)",
-        "BigAutoField": "CAST(%(expression)s AS Uint64)",
+        "BigAutoField": "CAST(%(expression)s AS Int64)",
         "BinaryField": "CAST(%(expression)s AS String)",
         "BooleanField": "CAST(%(expression)s AS Bool)",
         "CharField": "CAST(%(expression)s AS Utf8)",

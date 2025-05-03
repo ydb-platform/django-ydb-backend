@@ -5,10 +5,9 @@ from django.test import SimpleTestCase
 class TestDatabaseWrapper(SimpleTestCase):
     databases = {"default"}
 
-    # def test_get_database_version(self):
-    #     version = connection.get_database_version()
-    #     self.assertIsNotNone(version)
-    #     self.assertEqual(version, (24, 3, 11))
+    def test_get_database_version(self):
+        version = connection.get_database_version()
+        self.assertIsNotNone(version)
 
     def test_get_connection_params(self):
         params = connection.get_connection_params()
