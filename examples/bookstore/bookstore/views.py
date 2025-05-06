@@ -93,16 +93,22 @@ def item_delete(request, pk):
 class BookDetailAPIView(generics.RetrieveAPIView):
     queryset = BookStore.objects.all()
     serializer_class = BookStoreSerializer
+    authentication_classes = []  # Отключаем аутентификацию
+    permission_classes = []     # Отключаем проверки прав
 
 
 class BookCreateAPIView(generics.CreateAPIView):
     queryset = BookStore.objects.all()
     serializer_class = BookStoreSerializer
+    authentication_classes = []
+    permission_classes = []
 
 
 class BookListCreateAPIView(generics.ListCreateAPIView):
     queryset = BookStore.objects.all()
     serializer_class = BookStoreSerializer
+    authentication_classes = []
+    permission_classes = []
 
     def create(self, request, *args, **kwargs):
         if isinstance(request.data, list):
