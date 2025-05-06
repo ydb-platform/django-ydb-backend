@@ -15,10 +15,16 @@ Including another URLconf
 """
 from django.urls import path
 from bookstore import views
+from bookstore.views import BookDetailAPIView, BookCreateAPIView, BookListCreateAPIView
 
 urlpatterns = [
     path("", views.item_list, name="item_list"),
     path("create/", views.item_create, name="item_create"),
     path("update/<int:pk>/", views.item_update, name="item_update"),
     path("delete/<int:pk>/", views.item_delete, name="item_delete"),
+
+    # API endpoints
+    path("api/books/", BookListCreateAPIView.as_view(), name="api_book_list_create"),
+    path("api/books/create/", BookCreateAPIView.as_view(), name="api_book_create"),
+    path("api/books/<int:pk>/", BookDetailAPIView.as_view(), name="api_book_detail"),
 ]

@@ -4,8 +4,14 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework import status
+
 from .forms import BookStoreForm
 from .models import BookStore
+from .serializers import BookStoreSerializer
+
 
 ALLOWED_SORT_FIELDS = {
     "title": "Title",
@@ -82,3 +88,29 @@ def item_delete(request, pk):
         item.delete()
         return redirect("item_list")
     return render(request, "bookstore/record_confirm_delete.html", {"item": item})
+
+
+class BookDetailAPIView(generics.RetrieveAPIView):
+    queryset = BookStore.objects.all()
+    serializer_class = BookStoreSerializer
+
+
+class BookCreateAPIView(generics.CreateAPIView):
+    queryset = BookStore.objects.all()
+    serializer_class = BookStoreSerializer
+
+
+class BookListCreateAPIView(generics.ListCreateAPIView):
+    queryset = BookStore.objects.all()
+    serializer_class = BookStoreSerializer
+
+    def create(self, request, *args, **kwargs):
+        if isinstance(request.data, list):
+            serializer = self.get_serializer(data=request.data, many=True)
+        else:
+            serializer = self.get_serializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
