@@ -2,7 +2,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.base import logger
 from django.db.utils import DatabaseError
+from django.db.utils import NotSupportedError
 from django.db.utils import OperationalError
+from django.db.utils import ProgrammingError
 
 try:
     import ydb_dbapi as Database  # noqa: N812
@@ -42,8 +44,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
-        "AutoField": "SERIAL",
-        "BigAutoField": "SERIAL",
+        "AutoField": "Serial",
+        "BigAutoField": "BigSerial",
         "BinaryField": "String",
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
@@ -66,7 +68,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "PositiveBigIntegerField": "Uint64",
         "PositiveSmallIntegerField": "Uint16",
         "SlugField": "String",
-        "SmallAutoField": "SERIAL",
+        "SmallAutoField": "SmallSerial",
         "SmallIntegerField": "Int16",
         "TextField": "String",
         "TimeField": "Timestamp",
@@ -136,31 +138,48 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_describe(self, table_name):
         return self.connection.describe(table_name)
 
-    # TODO: try to find the db version
     def get_database_version(self):
-        return 24, 3, 11
+        """
+        Return a tuple of the database's version.
+        E.g. for ydb_version "23.4.11", return (23, 4, 11) or for ydb_version
+        from trunk return "main".
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT version()")
+                row = cursor.fetchone()
+                if row:
+                    parts = row[0].decode("utf-8").split("-")[0].split(".")
+                    return tuple(part for part in parts)
+                return None
+        except (OperationalError, ProgrammingError) as e:
+            logger.warning(
+                f"Failed to get database version: {e}. "
+                f"Falling back to driver version."
+            )
+            return _db_api_version()
+        except DatabaseError as e:
+            logger.error(f"Database error while getting version: {e}")
+            raise
 
-        # """
-        # Return a tuple of the database's version.
-        # E.g. for ydb_version "23.4.11", return (23, 4, 11).
-        # """
-        # try:
-        #     with self.connection.cursor() as cursor:
-        #         cursor.execute("SELECT version()")
-        #         row = cursor.fetchone()
-        #         if row:
-        #             parts = row[0].decode("utf-8").split("-")[0].split(".")
-        #             return tuple(int(part) for part in parts)
-        #         return None
-        # except (OperationalError, ProgrammingError) as e:
-        #     logger.warning(
-        #         f"Failed to get database version: {e}. "
-        #         f"Falling back to driver version."
-        #     )
-        #     return _db_api_version()
-        # except DatabaseError as e:
-        #     logger.error(f"Database error while getting version: {e}")
-        #     raise
+    def check_database_version_supported(self):
+        """
+        Raise an error if the database version isn't supported by this
+        version of Django.
+        """
+        if (
+                self.features.minimum_database_version is not None
+                and self.get_database_version() != ("main",)
+                and self.get_database_version() < self.features.minimum_database_version
+        ):
+            db_version = ".".join(map(str, self.get_database_version()))
+            min_db_version = ".".join(map(str, self.features.minimum_database_version))
+            error_msg = (
+                f"{self.display_name} {min_db_version} or later is required "
+                f"(found {db_version})."
+            )
+
+            raise NotSupportedError(error_msg)
 
     def get_connection_params(self):
         """
