@@ -109,6 +109,13 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         For Oracle, the column data_type on its own is insufficient to
         distinguish between a FloatField and IntegerField, for example.
         """
+        if data_type == "SmallAutoField":
+            return "Int16"
+        if data_type == "AutoField":
+            return "Int32"
+        if data_type == "BigAutoField":
+            return "Int64"
+
         return self.connection.data_types[data_type]
 
     def identifier_converter(self, name):

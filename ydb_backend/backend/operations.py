@@ -97,7 +97,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         "SmallAutoField": "CAST(%(expression)s AS Int16)",
         "AutoField": "CAST(%(expression)s AS Int32)",
         "BigAutoField": "CAST(%(expression)s AS Int64)",
-        "BinaryField": "CAST(%(expression)s AS String)",
+        "BinaryField": "CAST(%(expression)s AS Utf8)",
         "BooleanField": "CAST(%(expression)s AS Bool)",
         "CharField": "CAST(%(expression)s AS Utf8)",
         "DateField": "CAST(%(expression)s AS Date)",
@@ -105,8 +105,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         "DecimalField": "CAST(%(expression)s AS "
         "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
-        "FileField": "CAST(%(expression)s AS String)",
-        "FilePathField": "CAST(%(expression)s AS String)",
+        "FileField": "CAST(%(expression)s AS Utf8)",
+        "FilePathField": "CAST(%(expression)s AS Utf8)",
         "FloatField": "CAST(%(expression)s AS Float)",
         "DoubleField": "CAST(%(expression)s AS Double)",
         "IntegerField": "CAST(%(expression)s AS Int32)",
@@ -119,7 +119,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         "PositiveSmallIntegerField": "CAST(%(expression)s AS Uint16)",
         "PositiveBigIntegerField": "CAST(%(expression)s AS Uint64)",
         "SmallIntegerField": "CAST(%(expression)s AS Int16)",
-        "TextField": "CAST(%(expression)s AS String)",
+        "TextField": "CAST(%(expression)s AS Utf8)",
         "TimeField": "CAST(%(expression)s AS Timestamp)",
         "UUIDField": "CAST(%(expression)s AS UUID)",
     }
@@ -442,3 +442,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         """
         Return the SQL for rolling back the given savepoint.
         """
+
+    @staticmethod
+    def upsert_statement():
+        return "UPSERT INTO"
