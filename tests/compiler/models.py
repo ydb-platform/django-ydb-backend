@@ -1,4 +1,5 @@
 from django.db import models
+from ydb_backend.models.manager import YDBManager
 
 
 class Book(models.Model):
@@ -8,7 +9,12 @@ class Book(models.Model):
     price = models.IntegerField()
 
     def __str__(self):
-        return f"{self.title} {self.author} {self.isbn} {self.price}"
+        return (
+            f"{self.title} "
+            f"{self.author} "
+            f"{self.isbn} "
+            f"{self.price}"
+        )
 
 
 class Product(models.Model):
@@ -19,7 +25,13 @@ class Product(models.Model):
     stock = models.IntegerField()
 
     def __str__(self):
-        return f"{self.sku} {self.name} {self.category} {self.price} {self.stock}"
+        return (
+            f"{self.sku} "
+            f"{self.name} "
+            f"{self.category} "
+            f"{self.price} "
+            f"{self.stock}"
+        )
 
 
 class SimpleItem(models.Model):
@@ -29,7 +41,12 @@ class SimpleItem(models.Model):
     in_stock = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.code} {self.category} {self.quantity} {self.in_stock}"
+        return (
+            f"{self.code} "
+            f"{self.category} "
+            f"{self.quantity} "
+            f"{self.in_stock}"
+        )
 
 
 class SmartHomeDevice(models.Model):
@@ -65,6 +82,29 @@ class SmartHomeDevice(models.Model):
 
     def __str__(self):
         return (
-            f"{self.name} {self.device_type} {self.room} "
-            f"{self.ip_address} {self.mac_address} {self.status}"
+            f"{self.name} "
+            f"{self.device_type} "
+            f"{self.room} "
+            f"{self.ip_address} "
+            f"{self.mac_address} "
+            f"{self.status}"
+        )
+
+
+class NFTToken(models.Model):
+    contract_address = models.CharField(max_length=42)
+    token_id = models.CharField(max_length=78, primary_key=True)
+    owner = models.CharField(max_length=42)
+    metadata_url = models.CharField(max_length=256)
+    last_price = models.FloatField()
+
+    objects = YDBManager()
+
+    def __str__(self):
+        return (
+            f"{self.contract_address} "
+            f"{self.token_id} "
+            f"{self.owner} "
+            f"{self.metadata_url} "
+            f"{self.last_price}"
         )

@@ -13,9 +13,9 @@ class Person(models.Model):
         return (
             f"{self.first_name} "
             f"{self.last_name} "
-            f"{self.id}"
+            f"{self.id} "
             f"{self.is_man} "
-            f"{self.about}"
+            f"{self.about} "
             f"{self.age}"
         )
 
@@ -25,7 +25,10 @@ class Tag(models.Model):
     name = models.CharField(max_length=30)
 
     def __str__(self):
-        return f"{self.id}, {self.name}"
+        return (
+            f"{self.id}, "
+            f"{self.name}"
+        )
 
 
 class KeyModel(models.Model):
@@ -34,7 +37,11 @@ class KeyModel(models.Model):
     key_3 = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"{self.key_1}, {self.key_2}, {self.key_3}"
+        return (
+            f"{self.key_1}, "
+            f"{self.key_2}, "
+            f"{self.key_3}"
+        )
 
 
 class Square(models.Model):
@@ -60,3 +67,10 @@ class OldNameModel(models.Model):
     def __str__(self):
         return f"{self.id}: {self.old_name}"
 
+
+class MyModel(models.Model):
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.id}: {self.name}"

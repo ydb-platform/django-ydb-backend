@@ -3,6 +3,7 @@ from django.db import models
 from django.db.models import TextField
 from django.test import SimpleTestCase
 
+from ..models import MyModel
 from ..models import OldNameModel
 from ..models import SimpleModel
 
@@ -59,18 +60,18 @@ class TestDatabaseSchema(SimpleTestCase):
         self.assertEqual(OldNameModel._meta.db_table, new_table_name)
 
     def test_sql_create_column(self):
-        table_columns_before = [f.name for f in OldNameModel._meta.get_fields()]
+        table_columns_before = [f.name for f in MyModel._meta.get_fields()]
         self.assertNotIn("surname", table_columns_before)
 
-        OldNameModel.objects.create(id=1, old_name="Anonymous1")
+        MyModel.objects.create(id=1, name="Anonymous1")
         new_field = TextField(max_length=15, blank=True, default="keks", null=True)
         new_field.set_attributes_from_name("surname")
 
         with connection.schema_editor() as editor:
-            editor.add_field(OldNameModel, new_field)
+            editor.add_field(MyModel, new_field)
 
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM `backends_oldnamemodel`;")
+            cursor.execute("SELECT * FROM `backends_mymodel`;")
             row = cursor.fetchall()
 
         self.assertTrue(len(row[0]) > 2)
@@ -81,27 +82,29 @@ class TestDatabaseSchema(SimpleTestCase):
 
         with connection.schema_editor() as editor:
             editor.add_field(
-                OldNameModel,
+                MyModel,
                 field_to_remove
             )
 
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM `backends_oldnamemodel`;")
-            row = cursor.fetchall()
-
-        self.assertTrue(len(row[0]) > 3)
+            self.assertTrue(
+                len(connection.introspection.get_sequences(
+                    cursor,
+                    "backends_mymodel"
+                )) > 3)
 
         with connection.schema_editor() as editor:
             editor.remove_field(
-                OldNameModel,
+                MyModel,
                 field_to_remove
             )
 
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM `backends_oldnamemodel`;")
-            row = cursor.fetchall()
+            self.assertTrue(
+                len(connection.introspection.get_sequences(
+                    cursor, "backends_mymodel"
+                )) > 2)
 
-        self.assertTrue(len(row[0]) > 2)
 
     # def test_transaction_rollback(self):
     #     try:

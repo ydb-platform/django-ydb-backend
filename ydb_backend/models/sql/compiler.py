@@ -13,7 +13,7 @@ from django.db.models.sql.query import Query
 
 _ydb_types = {
     "AutoField": ydb.PrimitiveType.Int32,
-    "BigAutoField": ydb.PrimitiveType.Int32,
+    "BigAutoField": ydb.PrimitiveType.Int64,
     "BinaryField": ydb.PrimitiveType.Utf8,
     "BooleanField": ydb.PrimitiveType.Bool,
     # TODO: make the method limit the number of characters
@@ -34,7 +34,7 @@ _ydb_types = {
     "PositiveBigIntegerField": ydb.PrimitiveType.Uint64,
     "PositiveSmallIntegerField": ydb.PrimitiveType.Uint16,
     "SlugField": ydb.PrimitiveType.Utf8,
-    "SmallAutoField": ydb.PrimitiveType.Int32,
+    "SmallAutoField": ydb.PrimitiveType.Int16,
     "SmallIntegerField": ydb.PrimitiveType.Int16,
     "TextField": ydb.PrimitiveType.Utf8,
     "TimeField": ydb.PrimitiveType.Timestamp,
@@ -80,31 +80,6 @@ def _replace_placeholders(sql):
     return sql, placeholder_rows
 
 
-def _refactor_placeholder_and_params(placeholder_rows, param_rows, columns):
-    modified_placeholder = [[] for _ in range(len(placeholder_rows))]
-    for i in range(len(placeholder_rows)):
-        for j in range(len(placeholder_rows[i])):
-            modified_placeholder[i].append("$" + columns[j] + str(i))
-    return tuple(tuple(i) for i in modified_placeholder), param_rows
-
-
-def _generate_params(placeholder_rows, param_rows, model_types):
-    result = {}
-    for i in range(len(placeholder_rows)):
-        for j in range(len(placeholder_rows[i])):
-            if str(model_types[j]) == "DateTimeField":
-                result[placeholder_rows[i][j]] = (
-                    int(param_rows[i][j].timestamp()),
-                    _ydb_types[model_types[j]],
-                )
-            else:
-                result[placeholder_rows[i][j]] = (
-                    param_rows[i][j],
-                    _ydb_types[model_types[j]],
-                )
-    return result
-
-
 def _generate_params_for_update(placeholder_rows, columns, field_types, params):
     model_types = []
 
@@ -127,6 +102,28 @@ def _generate_params_for_update(placeholder_rows, columns, field_types, params):
             )
 
     return modified_params
+
+
+def _get_data(fields, param_rows):
+    result = []
+
+    for i in range(len(param_rows)):
+        struct = {}
+        for j in range(len(fields)):
+            if fields[j].get_internal_type() == "DateTimeField":
+                struct[fields[j].column] = int(param_rows[i][j].timestamp())
+            else:
+                struct[fields[j].column] = param_rows[i][j]
+        result.append(struct)
+
+    return result
+
+
+def _get_data_type(fields):
+    struct_type = ydb.StructType()
+    for f in fields:
+        struct_type.add_member(f.column, _ydb_types[f.get_internal_type()])
+    return ydb.ListType(struct_type)
 
 
 class SQLCompiler(SQLCompiler):
@@ -318,18 +315,30 @@ class SQLCompiler(SQLCompiler):
             self.query.reset_refcounts(refcounts_before)
 
 
-class SQLInsertCompiler(compiler.SQLInsertCompiler):
-    def as_sql(self):
-        # We don't need quote_name_unless_alias() here, since these are all
-        # going to be column names (so we can avoid the extra overhead).
+class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
+    def _prepare_sql_statement(self):
         qn = self.connection.ops.quote_name
         opts = self.query.get_meta()
-        insert_statement = self.connection.ops.insert_statement(
-            on_conflict=self.query.on_conflict,
-        )
-        result = [f"{insert_statement} {qn(opts.db_table)}"]
         fields = self.query.fields or [opts.pk]
-        result.append(f"({', '.join(qn(f.column) for f in fields)})")
+
+        field_types = [
+            qn(f.column) + ": " + self.connection.introspection.get_field_type(
+                f.get_internal_type(), {}
+            )
+            for f in fields
+        ]
+        in_ = f"{', '.join(field_types)}"
+
+        return [
+            f"DECLARE $in_ as List<Struct<{in_}>>;",
+            f"{self._get_statement()} {qn(opts.db_table)}",
+            f"({', '.join(qn(f.column) for f in fields)})",
+            f"SELECT {', '.join(qn(f.column) for f in fields)} FROM AS_TABLE($in_);"
+        ]
+
+    def _prepare_params(self):
+        opts = self.query.get_meta()
+        fields = self.query.fields or [opts.pk]
 
         if self.query.fields:
             value_rows = [
@@ -340,35 +349,26 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
                 for obj in self.query.objs
             ]
         else:
-            # An empty object.
             value_rows = [
                 [self.connection.ops.pk_default_value()] for _ in self.query.objs
             ]
             fields = [None]
 
-        # Currently the backends just accept values when generating bulk
-        # queries and generate their own placeholders. Doing that isn't
-        # necessary, and it should be possible to use placeholders and
-        # expressions in bulk inserts too.
-        can_bulk = (
-                not self.returning_fields and self.connection.features.has_bulk_insert
-        )
+        _, param_rows = self.assemble_as_sql(fields, value_rows)
+        return {
+            "$in_": (
+                _get_data(fields, param_rows),
+                _get_data_type(fields)
+            )
+        }
 
-        placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
+    def _get_statement(self):
+        raise NotImplementedError("Subclasses must implement this method")
 
-        placeholder_rows, param_rows = _refactor_placeholder_and_params(
-            placeholder_rows, param_rows, [f.column for f in fields]
-        )
-
-        params = _generate_params(
-            placeholder_rows, param_rows, [f.get_internal_type() for f in fields]
-        )
-
-        if can_bulk:
-            result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
-            return [(" ".join(result), params)]
-        return [(" ".join([*result, f"VALUES ({', '.join(p)})"]), params)
-                for p, vals in zip(placeholder_rows, param_rows)]
+    def as_sql(self):
+        sql = self._prepare_sql_statement()
+        params = self._prepare_params()
+        return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
         if returning_fields and len(self.query.objs) != 1:
@@ -406,6 +406,20 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         if converters:
             rows = list(self.apply_converters(rows, converters))
         return rows
+
+
+class SQLInsertCompiler(BaseSQLWriteCompiler):
+    def _get_statement(self):
+        return self.connection.ops.insert_statement(
+            on_conflict=self.query.on_conflict,
+        )
+
+
+class SQLUpsertCompiler(BaseSQLWriteCompiler):
+    def _get_statement(self):
+        return self.connection.ops.upsert_statement(
+            on_conflict=self.query.on_conflict,
+        )
 
 
 class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
@@ -594,11 +608,3 @@ class SQLAggregateCompiler(SQLAggregateCompiler):
         sql = f"SELECT {sql} FROM ({inner_query_sql}) subquery"
         params += inner_query_params
         return sql, params
-
-
-class SQLUpsertCompiler(SQLCompiler):
-    pass
-
-
-class SqlReplaceCompiler(SQLCompiler):
-    pass

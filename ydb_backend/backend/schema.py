@@ -10,7 +10,7 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.transaction import TransactionManagementError
 
-logger = logging.getLogger("django.db.backends.schema")
+logger = logging.getLogger("django_ydb_backend.ydb_backend.backend.schema")
 
 
 def _quote_null() -> str:
