@@ -1,5 +1,5 @@
 from django.db import models
-from ydb_backend.models.manager import UpsertManager
+from ydb_backend.models.manager import YDBManager
 
 
 class Book(models.Model):
@@ -98,7 +98,7 @@ class NFTToken(models.Model):
     metadata_url = models.CharField(max_length=256)
     last_price = models.FloatField()
 
-    objects = UpsertManager()
+    objects = YDBManager()
 
     def __str__(self):
         return (

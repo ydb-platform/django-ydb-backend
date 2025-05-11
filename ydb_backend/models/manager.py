@@ -9,7 +9,7 @@ from django.db.utils import IntegrityError
 logger = logging.getLogger("django_ydb_backend.models.manager")
 
 
-class UpsertManager(models.Manager):
+class YDBManager(models.Manager):
     def get_queryset(self):
         return UpsertQuerySet(self.model, using=self._db)
 
