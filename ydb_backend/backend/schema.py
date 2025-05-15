@@ -375,4 +375,3 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         NULL constraints must be specified during CREATE TABLE only
         Returns None as required by Django ORM compatibility
         """
-        return None
