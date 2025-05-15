@@ -335,43 +335,44 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             ):
                 self.deferred_sql.remove(sql)
 
-    # not supported in YDB
     def add_constraint(self, model, constraint):
-        """Add a constraint to a model."""
+        """
+        YDB does not support constraints - for Django compatibility only
+        User applications must enforce constraints at application level.
+        """
 
     # not supported in YDB
     def remove_constraint(self, model, constraint):
-        """Remove a constraint from a model."""
-
-    # not supported in YDB
-    def alter_index_together(self, model, old_index_together, new_index_together):
         """
-        Deal with a model changing its index_together. The input
-        index_togethers must be doubly-nested, not the single-nested
-        ["foo", "bar"] format.
+        YDB does not support constraints - for Django compatibility only
+        User applications must enforce constraints at application level.
         """
 
-    # not supported in YDB
     def alter_db_table_comment(self, model, old_db_table_comment, new_db_table_comment):
-        pass
+        """
+        Table comments are not supported in YDB
+        Method exists solely for Django ORM compatibility
+        """
 
     # not supported in YDB
     def remove_procedure(self, procedure_name, param_types=()):
-        pass
+        """
+        Stored procedures not supported in YDB
+        Method exists solely for Django ORM compatibility
+        """
 
     # not supported in YDB
     def alter_unique_together(self, model, old_unique_together, new_unique_together):
         """
-        Deal with a model changing its unique_together. The input
-        unique_togethers must be doubly-nested, not the single-nested
-        ["foo", "bar"] format.
+        YDB does not enforce unique constraints
+        For Django compatibility only - implement uniqueness checks in app logic
         """
 
     # not supported in YDB
     def _alter_column_null_sql(self, model, old_field, new_field):
         """
-        Hook to specialize column null alteration.
-
-        Return a (sql, params) fragment to set a column to null or non-null
-        as required by new_field, or None if no changes are required.
+        YDB does not support altering NULL/NOT NULL constraints after table creation
+        NULL constraints must be specified during CREATE TABLE only
+        Returns None as required by Django ORM compatibility
         """
+        return None

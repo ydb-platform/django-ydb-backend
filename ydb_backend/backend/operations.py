@@ -431,16 +431,15 @@ class DatabaseOperations(BaseDatabaseOperations):
         values_sql = ", ".join([f"({sql})" for sql in placeholder_rows_sql])
         return f"VALUES {values_sql}"
 
-    # not supported in YDB
     def savepoint_commit_sql(self, sid):
         """
-        Return the SQL for committing the given savepoint.
+        Savepoint operations are not supported in YDB - empty stub for Django
         """
 
     # not supported in YDB
     def savepoint_rollback_sql(self, sid):
         """
-        Return the SQL for rolling back the given savepoint.
+        Savepoint operations are not supported in YDB - empty stub for Django
         """
 
     @staticmethod
