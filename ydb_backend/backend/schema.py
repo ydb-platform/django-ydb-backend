@@ -304,23 +304,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             }
         )
 
-    # not supported in YDB
-    def alter_unique_together(self, model, old_unique_together, new_unique_together):
-        """
-        Deal with a model changing its unique_together. The input
-        unique_togethers must be doubly-nested, not the single-nested
-        ["foo", "bar"] format.
-        """
-
-    # not supported in YDB
-    def _alter_column_null_sql(self, model, old_field, new_field):
-        """
-        Hook to specialize column null alteration.
-
-        Return a (sql, params) fragment to set a column to null or non-null
-        as required by new_field, or None if no changes are required.
-        """
-
     def create_model(self, model):
         """
         Create a table and any accompanying indexes or unique constraints for
@@ -359,3 +342,38 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     # not supported in YDB
     def remove_constraint(self, model, constraint):
         """Remove a constraint from a model."""
+
+    # not supported in YDB
+    def alter_index_together(self, model, old_index_together, new_index_together):
+        """
+        Deal with a model changing its index_together. The input
+        index_togethers must be doubly-nested, not the single-nested
+        ["foo", "bar"] format.
+        """
+
+    # not supported in YDB
+    def alter_db_table_comment(self, model, old_db_table_comment, new_db_table_comment):
+        pass
+
+    # not supported in YDB
+    def remove_procedure(self, procedure_name, param_types=()):
+        pass
+
+        # not supported in YDB
+
+    def alter_unique_together(self, model, old_unique_together, new_unique_together):
+        """
+        Deal with a model changing its unique_together. The input
+        unique_togethers must be doubly-nested, not the single-nested
+        ["foo", "bar"] format.
+        """
+
+        # not supported in YDB
+
+    def _alter_column_null_sql(self, model, old_field, new_field):
+        """
+        Hook to specialize column null alteration.
+
+        Return a (sql, params) fragment to set a column to null or non-null
+        as required by new_field, or None if no changes are required.
+        """
