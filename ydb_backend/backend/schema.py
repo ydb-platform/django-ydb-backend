@@ -359,8 +359,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     def remove_procedure(self, procedure_name, param_types=()):
         pass
 
-        # not supported in YDB
-
+    # not supported in YDB
     def alter_unique_together(self, model, old_unique_together, new_unique_together):
         """
         Deal with a model changing its unique_together. The input
@@ -368,8 +367,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         ["foo", "bar"] format.
         """
 
-        # not supported in YDB
-
+    # not supported in YDB
     def _alter_column_null_sql(self, model, old_field, new_field):
         """
         Hook to specialize column null alteration.
