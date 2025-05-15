@@ -74,3 +74,56 @@ class MyModel(models.Model):
 
     def __str__(self):
         return f"{self.id}: {self.name}"
+
+
+class ModelWithIndexes(models.Model):
+    id = models.IntegerField(primary_key=True)
+    single_idx_field = models.CharField(max_length=256, db_index=True)
+    single_idx_field_w_name = models.IntegerField()
+    first_part_composite_idx_field = models.BigIntegerField()
+    second_part_composite_idx_field = models.TextField()
+    third_part_composite_idx_field = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=256)
+    condition_field = models.BooleanField()
+    non_idx_first_field = models.CharField(max_length=256)
+    non_idx_second_field = models.TextField()
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=[
+                    "first_part_composite_idx_field",
+                    "second_part_composite_idx_field",
+                    "third_part_composite_idx_field"
+                ],
+                name="composite_idx_w_name"
+            ),
+            models.Index(
+                fields=[
+                    "first_part_composite_idx_field",
+                    "second_part_composite_idx_field"
+                ],
+            ),
+            models.Index(
+                fields=["name"],
+                condition=models.Q(condition_field=True),
+                name="partial_idx"
+            ),
+            models.Index(
+                fields=["single_idx_field_w_name"],
+                name="single_idx_w_name"
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.id}, "
+            f"{self.single_idx_field}, "
+            f"{self.first_part_composite_idx_field} "
+            f"{self.second_part_composite_idx_field} "
+            f"{self.third_part_composite_idx_field} "
+            f"{self.condition_field} "
+            f"{self.name} "
+            f"{self.non_idx_first_field}"
+            f"{self.non_idx_second_field}"
+        )

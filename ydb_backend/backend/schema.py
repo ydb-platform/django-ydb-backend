@@ -83,6 +83,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     """
 
     # TODO: WITH (STORE = %(store_type)s)
+    # TODO: Need to able create index while we create the table
     sql_create_table = (
         "CREATE TABLE %(table)s (%(definition)s, PRIMARY KEY (%(primary_key)s));"
     )
@@ -93,10 +94,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         "ALTER TABLE %(table)s RENAME INDEX %(old_name)s TO %(new_name)s;"
     )
     sql_create_index = (
-        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL ON (%(column)s);"
+        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL ON (%(columns)s);"
     )
+    # TODO: how to use?
     sql_create_unique_index = (
-        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL UNIQUE ON (%(column)s);"
+        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL UNIQUE ON (%(columns)s);"
     )
     sql_rename_table = "ALTER TABLE %(old_table)s RENAME TO %(new_table)s;"
     sql_create_column = "ALTER TABLE %(table)s ADD COLUMN %(column)s %(definition)s;"
@@ -357,55 +359,3 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     # not supported in YDB
     def remove_constraint(self, model, constraint):
         """Remove a constraint from a model."""
-
-    # def _create_index_sql(
-    #         self,
-    #         model,
-    #         *,
-    #         fields=None,
-    #         name=None,
-    #         suffix="",
-    #         using="",
-    #         db_tablespace=None,
-    #         col_suffixes=(),
-    #         sql=None,
-    #         opclasses=(),
-    #         condition=None,
-    #         include=None,
-    #         expressions=None,
-    # ):
-    #     """
-    #     Return the SQL statement to create the index for one or several fields
-    #     or expressions. `sql` can be specified if the syntax differs from the
-    #     standard (GIS indexes, ...).
-    #     """
-    #     fields = fields or []
-    #     expressions = expressions or []
-    #     name = name or ""
-    #
-    #     compiler = Query(model, alias_cols=False).get_compiler(
-    #         connection=self.connection,
-    #     )
-    #     columns = [field.column for field in fields]
-    #     sql_create_index = self.sql_create_index
-    #     table = model._meta.db_table
-    #
-    #     return Statement(
-    #         sql_create_index,
-    #         table=Table(table, self.quote_name),
-    #         name=self.quote_name(name),
-    #         columns=(
-    #             self._index_columns(table, columns, col_suffixes, opclasses)
-    #             if columns
-    #             else Expressions(table, expressions, compiler, self.quote_value)
-    #         ),
-    #     )
-    #
-    # def _delete_index_sql(self, model, name, sql=None):
-    #     return Statement(
-    #         self.sql_delete_index,
-    #         table=Table(model._meta.db_table, self.quote_name),
-    #         name=self.quote_name(name),
-    #     )
-    # def alter_index_together(self, model, old_index_together, new_index_together):
-    # def _delete_composed_index(self, model, fields, constraint_kwargs, sql):
