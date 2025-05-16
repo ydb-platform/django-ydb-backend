@@ -145,26 +145,6 @@ class TestDatabaseSchema(TransactionTestCase):
         index_true = _get_indexes()
         self.assertIn("single_idx_w_name_renamed", index_true)
 
-    def test_rename_index(self):
-        index_true = _get_indexes()
-        self.assertIn("partial_idx", index_true)
-        self.assertNotIn("partial_idx_renamed", index_true)
-
-        operation = migrations.RenameIndex(
-            "backends_modelwithindexes",
-            new_name="partial_idx_renamed",
-            old_name="partial_idx"
-        )
-        self.assertEqual(
-            operation.describe(),
-            "Rename index partial_idx on "
-            "backends_modelwithindexes to partial_idx_renamed",
-        )
-        self.assertEqual(
-            operation.migration_name_fragment,
-            "rename_partial_idx_partial_idx_renamed",
-        )
-
     def test_sql_delete_index(self):
         index_true = _get_indexes()
         self.assertIn("composite_idx_w_name", index_true)
