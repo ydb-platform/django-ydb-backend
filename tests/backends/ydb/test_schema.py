@@ -132,6 +132,7 @@ class TestDatabaseSchema(TransactionTestCase):
         )
 
         index_true = _get_indexes()
+        self.assertIn("single_idx_w_name", index_true)
         self.assertNotIn("single_idx_w_name_renamed", index_true)
 
         with connection.schema_editor() as editor:
