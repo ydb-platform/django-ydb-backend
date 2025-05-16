@@ -1,5 +1,4 @@
 from django.db import connection
-from django.db import migrations
 from django.db import models
 from django.db.models import Index
 from django.db.models import TextField
