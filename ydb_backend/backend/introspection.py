@@ -168,12 +168,13 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         table_scheme_entry = self.connection.get_describe(table_name)
         return _create_sequences_info(table_name, table_scheme_entry.columns)
 
-    # Foreign keys are not supported in YDB
     def get_relations(self, cursor, table_name):
         """
-        Return a dictionary of {field_name: (field_name_other_table, other_table)}
-        representing all foreign keys in the given table.
+        YDB does not support foreign key constraints.
+        For Django and third-party apps only - always returns empty dict.
+        User applications must implement referential integrity in application logic.
         """
+        return {}
 
     def get_primary_key_columns(self, cursor, table_name):
         """

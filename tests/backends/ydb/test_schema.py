@@ -1,14 +1,26 @@
 from django.db import connection
 from django.db import models
+from django.db.models import Index
 from django.db.models import TextField
-from django.test import SimpleTestCase
+from django.test import TransactionTestCase
 
+from ..models import ModelWithIndexes
 from ..models import MyModel
 from ..models import OldNameModel
 from ..models import SimpleModel
 
 
-class TestDatabaseSchema(SimpleTestCase):
+def _get_indexes():
+    with connection.cursor() as cursor:
+        table_name = "backends_modelwithindexes"
+        constraints = connection.introspection.get_constraints(
+            cursor, table_name
+        )
+
+    return [key for key, value in constraints.items() if value.get("index") is True]
+
+
+class TestDatabaseSchema(TransactionTestCase):
     databases = {"default"}
 
     def test_create_model(self):
@@ -105,51 +117,53 @@ class TestDatabaseSchema(SimpleTestCase):
                     cursor, "backends_mymodel"
                 )) > 2)
 
+    def test_indexes_exists(self):
+        index_true = _get_indexes()
+        self.assertTrue(len(index_true) == 6)
 
-    # def test_transaction_rollback(self):
-    #     try:
-    #         with transaction.atomic():
-    #             self.schema.sql_create_table(
-    #                   self.test_table_name,
-    #                   {"id": "serial primary key"}
-    #             )
-    #             raise Exception("Test error")
-    #     except:
-    #         pass
-    #
-    #     with connection.cursor() as cursor:
-    #         cursor.execute(f"SELECT to_regclass('{self.test_table_name}');")
-    #         result = cursor.fetchone()[0]
-    #     self.assertIsNone(result)
-    #
-    # def test_composite_primary_key(self):
-    #     self.schema.sql_create_table(self.test_table_name, {
-    #         "id1": "integer",
-    #         "id2": "integer",
-    #         "PRIMARY KEY": "(id1, id2)"
-    #     })
-    #
-    #     with connection.cursor() as cursor:
-    #         cursor.execute(f"""
-    #             SELECT constraint_name
-    #             FROM information_schema.table_constraints
-    #             WHERE table_name='{self.test_table_name}'
-    #             AND constraint_type='PRIMARY KEY';
-    #         """)
-    #         result = cursor.fetchone()
-    #     self.assertIsNotNone(result)
+    def test_sql_rename_index(self):
+        old_index = Index(
+            name="single_idx_w_name",
+            fields=["single_idx_field_w_name"],
+        )
+        new_index = Index(
+            name="single_idx_w_name_renamed",
+            fields=["single_idx_field_w_name"],
+        )
 
-    # def test_sql_delete_index(self):
-    #     pass
-    #
-    # def test_sql_rename_index(self):
-    #     pass
-    #
-    # def test_sql_create_index(self):
-    #     pass
-    #
-    # def test_sql_create_unique_index(self):
-    #     pass
-    #
-    # def test_sql_update_with_default(self):
-    #     pass
+        index_true = _get_indexes()
+        self.assertIn("single_idx_w_name", index_true)
+        self.assertNotIn("single_idx_w_name_renamed", index_true)
+
+        with connection.schema_editor() as editor:
+            editor.rename_index(
+                ModelWithIndexes,
+                old_index,
+                new_index
+            )
+
+        index_true = _get_indexes()
+        self.assertIn("single_idx_w_name_renamed", index_true)
+        self.assertNotIn("single_idx_w_name", index_true)
+
+    def test_sql_delete_index(self):
+        index_true = _get_indexes()
+        self.assertIn("composite_idx_w_name", index_true)
+
+        index = Index(
+            name="composite_idx_w_name",
+            fields=[
+                "first_part_composite_idx_field",
+                "second_part_composite_idx_field",
+                "third_part_composite_idx_field"
+            ]
+        )
+
+        with connection.schema_editor() as editor:
+            editor.remove_index(
+                ModelWithIndexes,
+                index
+            )
+
+        index_true = _get_indexes()
+        self.assertNotIn("composite_idx_w_name", index_true)
