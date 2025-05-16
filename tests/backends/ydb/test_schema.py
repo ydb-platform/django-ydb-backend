@@ -132,6 +132,9 @@ class TestDatabaseSchema(TransactionTestCase):
             fields=["single_idx_field_w_name"],
         )
 
+        index_true = _get_indexes()
+        self.assertNotIn("single_idx_w_name_renamed", index_true)
+
         with connection.schema_editor() as editor:
             editor.rename_index(
                 ModelWithIndexes,
@@ -163,6 +166,9 @@ class TestDatabaseSchema(TransactionTestCase):
         )
 
     def test_sql_delete_index(self):
+        index_true = _get_indexes()
+        self.assertIn("composite_idx_w_name", index_true)
+
         index = Index(
             name="composite_idx_w_name",
             fields=[
