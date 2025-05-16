@@ -168,7 +168,6 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         table_scheme_entry = self.connection.get_describe(table_name)
         return _create_sequences_info(table_name, table_scheme_entry.columns)
 
-    # Foreign keys are not supported in YDB
     def get_relations(self, cursor, table_name):
         """
         YDB does not support foreign key constraints.

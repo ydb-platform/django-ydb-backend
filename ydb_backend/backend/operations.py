@@ -436,7 +436,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         Savepoint operations are not supported in YDB - empty stub for Django
         """
 
-    # not supported in YDB
     def savepoint_rollback_sql(self, sid):
         """
         Savepoint operations are not supported in YDB - empty stub for Django

@@ -107,7 +107,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         "UPDATE %(table)s SET %(column)s = %(default)s WHERE %(column)s IS NULL;"
     )
 
-    # Not supported in YDB
     sql_check_constraint = None
     sql_unique_constraint = None
     sql_delete_check = None
@@ -341,7 +340,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         User applications must enforce constraints at application level.
         """
 
-    # not supported in YDB
     def remove_constraint(self, model, constraint):
         """
         YDB does not support constraints - for Django compatibility only
@@ -354,21 +352,18 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         Method exists solely for Django ORM compatibility
         """
 
-    # not supported in YDB
     def remove_procedure(self, procedure_name, param_types=()):
         """
         Stored procedures not supported in YDB
         Method exists solely for Django ORM compatibility
         """
 
-    # not supported in YDB
     def alter_unique_together(self, model, old_unique_together, new_unique_together):
         """
         YDB does not enforce unique constraints
         For Django compatibility only - implement uniqueness checks in app logic
         """
 
-    # not supported in YDB
     def _alter_column_null_sql(self, model, old_field, new_field):
         """
         YDB does not support altering NULL/NOT NULL constraints after table creation
