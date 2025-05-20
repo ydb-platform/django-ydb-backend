@@ -46,7 +46,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     data_types = {
         "AutoField": "Serial",
         "BigAutoField": "BigSerial",
-        "BinaryField": "Uft8",
+        "BinaryField": "String",
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
@@ -54,8 +54,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # supports only Decimal(22,9)
         "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
         "DurationField": "Interval",
-        "FileField": "Utf8",
-        "FilePathField": "Utf8",
+        "FileField": "String",
+        "FilePathField": "String",
         "FloatField": "Float",
         "DoubleField": "Double",
         "IntegerField": "Int32",

@@ -1,7 +1,7 @@
 Migrations
 ===
 
-Migrations are difficult and complex.
+Migrations is a complex and multifaceted social process.
 
 YDB, as a distributed OLTP/OLAP system, has a number of architectural limitations that significantly affect the migration process. 
 Unlike traditional DBMS (PostgreSQL, MySQL), many YDB operations require a special approach or are not available at all.
@@ -23,7 +23,7 @@ Unlike traditional DBMS (PostgreSQL, MySQL), many YDB operations require a speci
 - Foreign keys (FOREIGN KEY).
 - Verification restrictions (CHECK).
 
-**Solution:** Data integrity control falls on the application.
+**Solution:** Data integrity control is assigned to the application logic.
 
 ## Indexes
 **Features:**

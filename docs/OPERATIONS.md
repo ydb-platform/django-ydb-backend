@@ -3,53 +3,14 @@ Operations
 
 The operations implement the Django ORM query compilation system in a YDB-specific syntax, taking into account the features of this distributed database.
 
-## Data type mapping (_ydb_types)
-Maps Django Field types to primitive YDB types:
-
-```python
-_ydb_types = {
-    "AutoField": ydb.PrimitiveType.Int32,
-    "DateTimeField": ydb.PrimitiveType.Datetime,
-    # ...
-}
-```
-
 Features:
 - All string types (CharField, TextField) are mapped to Utf 8.
 - Datetime is used for the DateTimeField, and timestamps are processed via .timestamp().
 
-## SQLCompiler (SELECT queries)
-Features:
-- LIMIT/OFFSET support via limit_offset_sql().
-- Automatic detection of parameter types for secure formatting.
+## UPSERT Operation
+UPSERT (which stands for UPDATE or INSERT) updates or inserts multiple rows to a table based on a comparison by the primary key.
+Missing rows are added. For the existing rows, the values of the specified columns are updated, but the values of the other columns are preserved.
 
-Conversion example:
-```python
-# Django-query:
-Model.objects.filter(id=1).values('name')
-```
-```sql
--- YDB-query:
-SELECT `name` FROM `table` WHERE `id` = $element_1
-```
-
-## BaseSQLWriteCompiler (Basic for INSERT/UPSERT)
-The mechanism of operation:
-- Generates a temporary structure for the parameters:
-    ```sql 
-  DECLARE $in_ as List<Struct<...>>;
-  ```
-- Uses AS_TABLE($in_) for insertion.
-    ```sql
-    DECLARE $in_ as List<Struct<id: Int64>>;
-    INSERT INTO table (id) SELECT id FROM AS_TABLE($in_);
-    ```
-
-## SQLDeleteCompiler and SQLUpdateCompiler
-- DELETE: Supports cascading deletes via subqueries.
-- UPDATE: Automatically determines the data types for the SET parameters.
-
-## UPSERT
 To use the pert method when creating a model, specify objects = YDBManager():
 ```python
   class NFTToken(models.Model):

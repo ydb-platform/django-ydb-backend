@@ -14,15 +14,15 @@ from django.db.models.sql.query import Query
 _ydb_types = {
     "AutoField": ydb.PrimitiveType.Int32,
     "BigAutoField": ydb.PrimitiveType.Int64,
-    "BinaryField": ydb.PrimitiveType.Utf8,
+    "BinaryField": ydb.PrimitiveType.String,
     "BooleanField": ydb.PrimitiveType.Bool,
     # TODO: make the method limit the number of characters
     "CharField": ydb.PrimitiveType.Utf8,
     "DateField": ydb.PrimitiveType.Date,
     "DateTimeField": ydb.PrimitiveType.Datetime,
     "DurationField": ydb.PrimitiveType.Interval,
-    "FileField": ydb.PrimitiveType.Utf8,
-    "FilePathField": ydb.PrimitiveType.Utf8,
+    "FileField": ydb.PrimitiveType.String,
+    "FilePathField": ydb.PrimitiveType.String,
     "FloatField": ydb.PrimitiveType.Float,
     "DoubleField": ydb.PrimitiveType.Double,
     "IntegerField": ydb.PrimitiveType.Int32,
