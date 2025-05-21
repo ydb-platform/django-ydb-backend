@@ -1,8 +1,6 @@
 Migrations
 ===
 
-Migrations is a complex and multifaceted social process.
-
 YDB, as a distributed OLTP/OLAP system, has a number of architectural limitations that significantly affect the migration process. 
 Unlike traditional DBMS (PostgreSQL, MySQL), many YDB operations require a special approach or are not available at all.
 

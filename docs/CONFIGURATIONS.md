@@ -21,9 +21,6 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
          "HOST": "localhost",
          "PORT": "2136",
          "DATABASE": "/local",
-         "OPTIONS": {
-             "credentials": None,
-         },
      }
  }
  ```
