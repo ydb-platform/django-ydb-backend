@@ -11,7 +11,6 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
 - HOST (required): the hostname or IP address of the YDB server (e.g., "localhost").
 - PORT (required): The gRPC port YDB is running on (default is 2136).
 - DATABASE (required): The full path to your YDB database (e.g., "/local" for local testing or "/my_production_db").
-- OPTIONS (optional): Additional settings for the YDB connection (e.g., credentials)
 
  ```python
  DATABASES = {
