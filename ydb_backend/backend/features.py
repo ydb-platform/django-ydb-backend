@@ -28,7 +28,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # constraint exists and some fields are nullable but not all of them?
     supports_partially_nullable_unique_constraints = False
 
-    can_return_rows_from_bulk_insert = True
+    can_return_rows_from_bulk_insert = False
     uses_savepoints = False
 
     # Can a fixture contain forward references? i.e., are
@@ -84,7 +84,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "DoubleField": "DoubleField",
             "IPAddressField": "IPAddressField",
             "NullBooleanField": "NullBooleanField",
-            "OneToOneField": "OneToOneField",
             "SlugField": "SlugField",
             "TextField": "TextField",
             "UUIDField": "UUIDField",
