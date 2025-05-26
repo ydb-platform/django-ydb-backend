@@ -53,9 +53,10 @@ def _extract_column_names(sql):
         `(?P<column>\w+)`
         \s*
         (?:
-        <>|<=|>=|=|!=|
-        <|>|LIKE|IN|
-        IS(?:\s+NOT)?
+          <>|<=|>=|=|!=|
+          <|>|LIKE|IN|
+          IS(?:\s+NOT)?
+        )
         \s*%s
     """
 
@@ -325,7 +326,6 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
             )
             for f in fields
         ]
-        print("yyyyy: ", field_types)
         in_ = f"{', '.join(field_types)}"
 
         return [
@@ -381,9 +381,7 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
         with self.connection.cursor() as cursor:
             for sql, params in self.as_sql():
-                print("xxxxx: ", sql)
                 cursor.execute_scheme(sql, params)
-
             if not self.returning_fields:
                 return []
             if (
@@ -403,11 +401,10 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
                         ),
                     )
                 ]
-            converters = self.get_converters(cols)
-            if converters:
-                rows = list(self.apply_converters(rows, converters))
-
-            return rows
+        converters = self.get_converters(cols)
+        if converters:
+            rows = list(self.apply_converters(rows, converters))
+        return rows
 
 
 class SQLInsertCompiler(BaseSQLWriteCompiler):
