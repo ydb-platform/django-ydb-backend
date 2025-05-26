@@ -5,7 +5,6 @@ from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
 from django.core.exceptions import FullResultSet
 from django.db import NotSupportedError
-from django.db import models
 from django.db.models.expressions import RawSQL
 from django.db.models.sql import compiler
 from django.db.models.sql.compiler import SQLAggregateCompiler
@@ -43,49 +42,26 @@ _ydb_types = {
 }
 
 
-# TODO: rethink, try to solve the problem without this method
 def _extract_column_names(sql):
     sql = re.sub(r"'[^']*'", "", sql)
     sql = re.sub(r'"[^"]*"', "", sql)
     sql = re.sub(r"--.*?$", "", sql, flags=re.MULTILINE)
     sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
 
-    operators = r"""
+    pattern = r"""
+        (?:`\w+`\.)?
+        `(?P<column>\w+)`
+        \s*
         (?:
-          [*/+\-]
-          |<>|<=|>=|!=|==|=|<|>
-          |\s+LIKE\s+|\s+NOT\s+LIKE\s+
-          |\s+IN\s+|\s+NOT\s+IN\s+
-          |\s+IS\s+(?:NOT\s+)?
-          |\s+AND\s+|\s+OR\s+|\s+NOT\s+
-        )
-    """
-
-    simple_pattern = rf"""
-        (?:`\w+`\.)?`(?P<column>\w+)`
-        \s*{operators}\s*%s
-    """
-
-    nested_pattern = rf"""
-        \(
-        \s*
-        (?:`\w+`\.)?`(?P<nested_column>\w+)`
-        \s*{operators}\s*%s
-        (?:[^)]*\s*{operators}\s*%s)*
-        \s*
-        \)
+        <>|<=|>=|=|!=|
+        <|>|LIKE|IN|
+        IS(?:\s+NOT)?
+        \s*%s
     """
 
     columns = []
-
-    for match in re.finditer(nested_pattern, sql, re.VERBOSE | re.IGNORECASE):
-        if match.group("nested_column"):
-            count = match.group().count("%s")
-            columns.extend([match.group("nested_column")] * count)
-
-    for match in re.finditer(simple_pattern, sql, re.VERBOSE | re.IGNORECASE):
-        if match.group("column"):
-            columns.append(match.group("column"))
+    for match in re.finditer(pattern, sql, re.VERBOSE | re.IGNORECASE):
+        columns.append(match.group("column"))
 
     return columns
 
@@ -349,6 +325,7 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
             )
             for f in fields
         ]
+        print("yyyyy: ", field_types)
         in_ = f"{', '.join(field_types)}"
 
         return [
@@ -393,55 +370,40 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
-        if (
-                returning_fields
-                and len(self.query.objs) != 1
-                and not self.connection.features.can_return_rows_from_bulk_insert
-        ):
+        if returning_fields and len(self.query.objs) != 1:
             raise ValueError(
                 "Invalid state: returning_fields requires "
                 "exactly one object in query.objs"
             )
 
         opts = self.query.get_meta()
-
-        if (returning_fields is None
-                and hasattr(opts, "pk")
-                and isinstance(opts.pk, (
-                        models.AutoField,
-                        models.SmallAutoField,
-                        models.BigAutoField
-                ))):
-            returning_fields = [opts.pk]
+        self.returning_fields = returning_fields
 
         with self.connection.cursor() as cursor:
             for sql, params in self.as_sql():
+                print("xxxxx: ", sql)
                 cursor.execute_scheme(sql, params)
 
-            if not returning_fields:
+            if not self.returning_fields:
                 return []
-
-            num_objects = len(self.query.objs)
-            if num_objects > 1:
-                last_id = self.connection.ops.last_insert_id(
-                    cursor,
-                    opts.db_table,
-                    opts.pk.column
-                )
-                first_id = last_id - num_objects + 1
-                rows = [(idx,) for idx in range(first_id, last_id + 1)]
+            if (
+                    self.connection.features.can_return_rows_from_bulk_insert
+                    and len(self.query.objs) > 1
+            ):
+                rows = self.connection.ops.fetch_returned_insert_rows(cursor)
+                cols = [field.get_col(opts.db_table) for field in self.returning_fields]
             else:
-                rows = [(
-                    self.connection.ops.last_insert_id(
-                        cursor,
-                        opts.db_table,
-                        opts.pk.column
-                    ),
-                )]
-
-            cols = [field.get_col(opts.db_table) for field in returning_fields]
+                cols = [opts.pk.get_col(opts.db_table)]
+                rows = [
+                    (
+                        self.connection.ops.last_insert_id(
+                            cursor,
+                            opts.db_table,
+                            opts.pk.column,
+                        ),
+                    )
+                ]
             converters = self.get_converters(cols)
-
             if converters:
                 rows = list(self.apply_converters(rows, converters))
 

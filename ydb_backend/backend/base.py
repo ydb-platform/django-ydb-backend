@@ -50,8 +50,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
         "DateTimeField": "Datetime",
-        # supports only Decimal(22,9)
-        "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
+        "DecimalField": "Decimal(22, 9)",
         "DurationField": "Interval",
         "FloatField": "Float",
         "DoubleField": "Double",

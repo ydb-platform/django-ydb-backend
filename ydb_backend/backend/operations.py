@@ -443,11 +443,3 @@ class DatabaseOperations(BaseDatabaseOperations):
     @staticmethod
     def upsert_statement():
         return "UPSERT INTO"
-
-    @staticmethod
-    def fetch_returned_insert_rows(cursor):
-        """
-        Given a cursor object that has just performed an INSERT...RETURNING
-        statement into a table, return the tuple of returned data.
-        """
-        return cursor.fetchall()
