@@ -84,7 +84,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "DoubleField": "DoubleField",
             "IPAddressField": "IPAddressField",
             "NullBooleanField": "NullBooleanField",
-            "OneToOneField": "OneToOneField",
             "SlugField": "SlugField",
             "TextField": "TextField",
             "UUIDField": "UUIDField",

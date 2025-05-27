@@ -46,36 +46,35 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     data_types = {
         "AutoField": "Serial",
         "BigAutoField": "BigSerial",
-        "BinaryField": "Uft8",
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
         "DateTimeField": "Datetime",
-        # supports only Decimal(22,9)
-        "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
+        "DecimalField": "Decimal(22, 9)",
         "DurationField": "Interval",
-        "FileField": "Utf8",
-        "FilePathField": "Utf8",
         "FloatField": "Float",
         "DoubleField": "Double",
         "IntegerField": "Int32",
         "BigIntegerField": "Int64",
-        "IPAddressField": "Utf8",
-        "GenericIPAddressField": "Utf8",
         "NullBooleanField": "optional<Bool>",
-        "OneToOneField": "Int64",
         "PositiveIntegerField": "Uint32",
         "PositiveBigIntegerField": "Uint64",
         "PositiveSmallIntegerField": "Uint16",
-        "SlugField": "Utf8",
         "SmallAutoField": "SmallSerial",
         "SmallIntegerField": "Int16",
         "TextField": "Utf8",
-        "TimeField": "Timestamp",
         "UUIDField": "UUID",
         "JSONField": "Json",
         "EnumField": "Enum",
-        "EmailField": "Utf8"
+
+        # TODO: Add validation for string related fields
+        "FileField": "String",
+        "FilePathField": "Utf8",
+        "IPAddressField": "Utf8",
+        "EmailField": "Utf8",
+        "GenericIPAddressField": "Utf8",
+        "SlugField": "Utf8",
+        "BinaryField": "String",
     }
 
     operators = {
