@@ -228,6 +228,3 @@ class TimeFieldsTest(SimpleTestCase):
     #     qs = TimeModel.objects.filter(date_field__year=2023, date_field__month=5)
     #     self.assertEqual(qs.count(), 1)
     #     self.assertEqual(qs.first().date_field, date(2023, 5, 15))
-
-
-
