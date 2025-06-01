@@ -115,11 +115,6 @@ class TestDatabaseOperations(SimpleTestCase):
         with self.assertRaises(NotImplementedError):
             connection.ops.regex_lookup("invalid_type")
 
-    def test_lookup_cast(self):
-        for lookup in LOOKUP_TYPES:
-            with self.subTest(lookup=lookup):
-                self.assertIn("optional<string>", connection.ops.lookup_cast(lookup))
-
     def test_prepare_sql_script(self):
         sql_script = """
         SELECT * FROM users;

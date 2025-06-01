@@ -5,6 +5,7 @@ from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
 from django.core.exceptions import FullResultSet
 from django.db import NotSupportedError
+from django.db import models
 from django.db.models.expressions import RawSQL
 from django.db.models.sql import compiler
 from django.db.models.sql.compiler import SQLAggregateCompiler
@@ -42,29 +43,36 @@ _ydb_types = {
 }
 
 
-def _extract_column_names(sql):
-    sql = re.sub(r"'[^']*'", "", sql)
-    sql = re.sub(r'"[^"]*"', "", sql)
-    sql = re.sub(r"--.*?$", "", sql, flags=re.MULTILINE)
-    sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
-
-    pattern = r"""
-        (?:`\w+`\.)?
-        `(?P<column>\w+)`
-        \s*
-        (?:
-          <>|<=|>=|=|!=|
-          <|>|LIKE|IN|
-          IS(?:\s+NOT)?
-        )
-        \s*%s
-    """
+def _extract_column_names(sql_text):
+    column_pattern = re.compile(r'''
+            (?:`[^`]+`\.`[^`]+`(?!\w)
+            |`[^`]+`(?!\w)
+            )(?=(?:\s|[),;]|$))
+        ''', re.VERBOSE)
 
     columns = []
-    for match in re.finditer(pattern, sql, re.VERBOSE | re.IGNORECASE):
-        columns.append(match.group("column"))
+    for m in column_pattern.finditer(sql_text):
+        col_name = m.group()
 
-    return columns
+        if '.' in col_name:
+            col_name = col_name.split('.')[-1]
+        col_name = col_name.strip('`')
+
+        columns.append((m.start(), col_name))
+
+    placeholders = [m.start() for m in re.finditer(r'%s', sql_text)]
+
+    result = []
+    for ph_pos in placeholders:
+        last_column = None
+        for col_pos, col_name in columns:
+            if col_pos < ph_pos:
+                last_column = col_name
+            else:
+                break
+        result.append(last_column)
+
+    return result
 
 
 def _replace_placeholders(sql):
@@ -211,8 +219,7 @@ class SQLCompiler(SQLCompiler):
                     result.append(f"WHERE {where}")
                     params.extend(w_params)
                     if len(where) > 0:
-                        col = re.findall(r"`\w+`\.`(\w+)`", where)
-                        columns = columns + col
+                        columns = columns + _extract_column_names(where)
 
                 grouping = []
                 for g_sql, g_params in group_by:
@@ -233,8 +240,7 @@ class SQLCompiler(SQLCompiler):
                     result.append(f"HAVING {having}")
                     params.extend(h_params)
                     if len(having) > 0:
-                        col = re.findall(r"`\w+`\.`(\w+)`", having)
-                        columns = columns + col
+                        columns = columns + _extract_column_names(having)
 
             if self.query.explain_info:
                 result.insert(
@@ -370,41 +376,59 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
-        if returning_fields and len(self.query.objs) != 1:
+        if (
+                returning_fields
+                and len(self.query.objs) != 1
+                and not self.connection.features.can_return_rows_from_bulk_insert
+        ):
             raise ValueError(
                 "Invalid state: returning_fields requires "
                 "exactly one object in query.objs"
             )
 
         opts = self.query.get_meta()
-        self.returning_fields = returning_fields
+
+        if (returning_fields is None
+                and hasattr(opts, "pk")
+                and isinstance(opts.pk, (
+                        models.AutoField,
+                        models.SmallAutoField,
+                        models.BigAutoField
+                ))):
+            returning_fields = [opts.pk]
 
         with self.connection.cursor() as cursor:
             for sql, params in self.as_sql():
                 cursor.execute_scheme(sql, params)
-            if not self.returning_fields:
+
+            if not returning_fields:
                 return []
-            if (
-                    self.connection.features.can_return_rows_from_bulk_insert
-                    and len(self.query.objs) > 1
-            ):
-                rows = self.connection.ops.fetch_returned_insert_rows(cursor)
-                cols = [field.get_col(opts.db_table) for field in self.returning_fields]
+
+            num_objects = len(self.query.objs)
+            if num_objects > 1:
+                last_id = self.connection.ops.last_insert_id(
+                    cursor,
+                    opts.db_table,
+                    opts.pk.column
+                )
+                first_id = last_id - num_objects + 1
+                rows = [(idx,) for idx in range(first_id, last_id + 1)]
             else:
-                cols = [opts.pk.get_col(opts.db_table)]
-                rows = [
-                    (
-                        self.connection.ops.last_insert_id(
-                            cursor,
-                            opts.db_table,
-                            opts.pk.column,
-                        ),
-                    )
-                ]
-        converters = self.get_converters(cols)
-        if converters:
-            rows = list(self.apply_converters(rows, converters))
-        return rows
+                rows = [(
+                    self.connection.ops.last_insert_id(
+                        cursor,
+                        opts.db_table,
+                        opts.pk.column
+                    ),
+                )]
+
+            cols = [field.get_col(opts.db_table) for field in returning_fields]
+            converters = self.get_converters(cols)
+
+            if converters:
+                rows = list(self.apply_converters(rows, converters))
+
+            return rows
 
 
 class SQLInsertCompiler(BaseSQLWriteCompiler):
@@ -429,11 +453,7 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
         try:
             where, params = self.compile(query.where)
             if len(where) > 0:
-                parts = where.split("%s")[:-1]
-                for part in parts:
-                    chunks = part.split("`")
-                    column_name = chunks[-2].strip()
-                    columns.append(column_name)
+                columns = columns + _extract_column_names(where)
         except FullResultSet:
             return delete, ()
         sql, params = f"{delete} WHERE {where}", tuple(params)
@@ -538,16 +558,15 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
             ", ".join(values),
         ]
 
-        columns = [item.split("=")[0].strip().strip("`") for item in values]
+        columns = []
+
+        for item in values:
+            columns.extend(_extract_column_names(item))
 
         try:
             where, params = self.compile(self.query.where)
             if len(where) > 0:
-                parts = where.split("%s")[:-1]
-                for part in parts:
-                    chunks = part.split("`")
-                    column_name = chunks[-2].strip()
-                    columns.append(column_name)
+                columns = columns + _extract_column_names(where)
         except FullResultSet:
             params = []
         else:
