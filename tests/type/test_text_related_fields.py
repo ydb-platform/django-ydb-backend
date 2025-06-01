@@ -1,14 +1,10 @@
+from django.db.models import Avg
+from django.db.models import Count
+from django.db.models import F
+from django.db.models import Q
 from django.test import SimpleTestCase
 
-from django.db.models import F
-from django.db.models.functions import Concat
-from django.db.models.functions import Length
-from django.db.models import Q
-from django.db.models import Count
-from django.db.models import CharField
-from django.db.models import Value
 from .models import BlogPost
-from django.db.models import Avg
 from .models import TextRelatedModel
 
 
@@ -137,12 +133,24 @@ class TextRelatedFieldsTest(SimpleTestCase):
             text_field="Regular expressions are powerful"
         )
 
-        results_con = TextRelatedModel.objects.filter(text_field__contains="brown fox")
-        results_icon = TextRelatedModel.objects.filter(text_field__icontains="DJANGO orm")
-        results_slike = TextRelatedModel.objects.filter(text_field__startswith="The quick")
-        results_elike = TextRelatedModel.objects.filter(text_field__endswith="expressions are powerful")
-        results_reg = TextRelatedModel.objects.filter(text_field__regex=r"^The.*dog$")
-        results_ireg = TextRelatedModel.objects.filter(text_field__iregex=r"REGULAR\sEXPRESSIONS")
+        results_con = TextRelatedModel.objects.filter(
+            text_field__contains="brown fox"
+        )
+        results_icon = TextRelatedModel.objects.filter(
+            text_field__icontains="DJANGO orm"
+        )
+        results_slike = TextRelatedModel.objects.filter(
+            text_field__startswith="The quick"
+        )
+        results_elike = TextRelatedModel.objects.filter(
+            text_field__endswith="expressions are powerful"
+        )
+        results_reg = TextRelatedModel.objects.filter(
+            text_field__regex=r"^The.*dog$"
+        )
+        results_ireg = TextRelatedModel.objects.filter(
+            text_field__iregex=r"REGULAR\sEXPRESSIONS"
+        )
 
         self.assertEqual(results_con.count(), 1)
         self.assertEqual(results_con.first().char_field, "Object 1")
@@ -181,17 +189,21 @@ class TextRelatedFieldsTest(SimpleTestCase):
             text_field="some text"
         )
 
-        results1 = TextRelatedModel.objects.filter(char_field__exact="Molly is awesome")
-        results2 = TextRelatedModel.objects.filter(char_field__iexact="molly IS awesome")
+        results1 = TextRelatedModel.objects.filter(
+            char_field__exact="Molly is awesome"
+        )
+        results2 = TextRelatedModel.objects.filter(
+            char_field__iexact="molly IS awesome"
+        )
 
         self.assertEqual(results1.count(), 1)
         self.assertEqual(results2.count(), 1)
-#
+
     def test_complex_queries(self):
         BlogPost.objects.bulk_create([
             BlogPost(
                 title="Django для начинающих",
-                content="Учим Django с нуля. Django — это мощный фреймворк.",
+                content="Learning python. Django — it's a powerful framework",
                 tags="django, web, python",
                 views=100,
                 is_published=True
@@ -204,8 +216,8 @@ class TextRelatedFieldsTest(SimpleTestCase):
                 is_published=True
             ),
             BlogPost(
-                title="Веб-разработка в 2024",
-                content="Тренды веб-разработки: Django, FastAPI, React.",
+                title="Web-development in 2024",
+                content="Trends in web-development: Django, FastAPI, React.",
                 tags="web, django, react",
                 views=200,
                 is_published=True
@@ -219,14 +231,14 @@ class TextRelatedFieldsTest(SimpleTestCase):
             ),
             BlogPost(
                 title="Django REST Framework",
-                content="Создаем API с помощью DRF.",
+                content="Create API with DRF.",
                 tags="django, api, rest",
                 views=150,
                 is_published=True
             ),
             BlogPost(
                 title="Hello World на Python",
-                content="Простейшая программа на Python.",
+                content="Simple program in Python",
                 tags="python, beginner",
                 views=300,
                 is_published=True

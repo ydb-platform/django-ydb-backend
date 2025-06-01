@@ -44,23 +44,23 @@ _ydb_types = {
 
 
 def _extract_column_names(sql_text):
-    column_pattern = re.compile(r'''
+    column_pattern = re.compile(r"""
             (?:`[^`]+`\.`[^`]+`(?!\w)
             |`[^`]+`(?!\w)
             )(?=(?:\s|[),;]|$))
-        ''', re.VERBOSE)
+        """, re.VERBOSE)
 
     columns = []
     for m in column_pattern.finditer(sql_text):
         col_name = m.group()
 
-        if '.' in col_name:
-            col_name = col_name.split('.')[-1]
-        col_name = col_name.strip('`')
+        if "." in col_name:
+            col_name = col_name.split(".")[-1]
+        col_name = col_name.strip("`")
 
         columns.append((m.start(), col_name))
 
-    placeholders = [m.start() for m in re.finditer(r'%s', sql_text)]
+    placeholders = [m.start() for m in re.finditer(r"%s", sql_text)]
 
     result = []
     for ph_pos in placeholders:

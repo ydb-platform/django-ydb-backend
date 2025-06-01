@@ -6,7 +6,6 @@ from django.db.models.functions import TruncDate
 from django.test import SimpleTestCase
 from django.utils import timezone
 
-
 from .models import TimeModel
 
 
