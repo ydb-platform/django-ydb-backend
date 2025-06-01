@@ -209,6 +209,7 @@ class TimeFieldsTest(SimpleTestCase):
         obj = TimeModel.objects.get(id=obj.id)
         new_duration = obj.duration_field * 2
         self.assertEqual(new_duration, timedelta(days=2))
+
     def test_date_field_arithmetic(self):
         obj = TimeModel.objects.create(
             date_field=date(1997, 3, 4),
@@ -218,10 +219,6 @@ class TimeFieldsTest(SimpleTestCase):
 
         new_date = obj.date_field + timedelta(days=10)
         self.assertEqual(new_date, date(1997, 3, 14))
-
-
-
-
 
     # def test_datetime_field_queries(self):
     #     qs = TimeModel.objects.filter(datetime_field__hour='12')
