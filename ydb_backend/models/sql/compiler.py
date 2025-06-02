@@ -376,16 +376,6 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
-        if (
-                returning_fields
-                and len(self.query.objs) != 1
-                and not self.connection.features.can_return_rows_from_bulk_insert
-        ):
-            raise ValueError(
-                "Invalid state: returning_fields requires "
-                "exactly one object in query.objs"
-            )
-
         opts = self.query.get_meta()
 
         if (returning_fields is None
