@@ -79,7 +79,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     operators = {
         "exact": "= %s",
-        "iexact": "ILIKE %s",
+        "iexact": "REGEXP '(?i)(' || %s || ')$'",
         "contains": "LIKE %s",
         "icontains": "ILIKE %s",
         "gt": "> %s",
@@ -96,7 +96,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "between": "BETWEEN %s AND %s",
         "isnull": "IS NULL",
         "regex": "REGEXP %s",
-        "iregex": "REGEXP %s",
+        "iregex": "REGEXP '(?i)' || %s",
     }
 
     # The patterns below are used to generate SQL pattern lookup clauses when

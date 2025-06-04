@@ -22,19 +22,6 @@ DATE_PARAMS_TRUNC = [
     "day",
 ]
 
-LOOKUP_TYPES = [
-    "like",
-    "ilike",
-    "regex",
-    "iregex",
-    "contains",
-    "find",
-    "startswith",
-    "endswith",
-    "istartswith",
-    "iendswith",
-]
-
 
 # common code for methods date_extract_sql and datetime_extract_sql
 def _common_dt_dttm_extract_funcs(lookup_type, sql, params):
@@ -339,20 +326,6 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         cursor.execute(sql)
         return cursor.fetchone()[0]
-
-    # TODO: Double check
-    def lookup_cast(self, lookup_type, internal_type=None):
-        """
-        Return the string to use in a query when performing lookups
-        ("contains", "like", etc.). It should contain a '%s' placeholder for
-        the column being searched against.
-        """
-        lookup = "%s"
-
-        if lookup_type in LOOKUP_TYPES:
-            lookup = "CAST(%s, as optional<string>)"
-
-        return lookup
 
     def max_in_list_size(self):
         """
