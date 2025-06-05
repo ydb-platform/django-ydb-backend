@@ -2,9 +2,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.base import logger
 from django.db.utils import DatabaseError
+from django.db.utils import Error
 from django.db.utils import NotSupportedError
 from django.db.utils import OperationalError
-from django.db.utils import ProgrammingError
 
 try:
     import ydb_dbapi as Database  # noqa: N812
@@ -23,13 +23,6 @@ from .introspection import DatabaseIntrospection
 from .operations import DatabaseOperations
 from .schema import DatabaseSchemaEditor
 from .validation import DatabaseValidation
-
-
-def _db_api_version():
-    if hasattr(Database, "version"):
-        version = Database.version.VERSION.split(".")
-        return tuple(map(int, version))
-    return 0, 0, 0
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
@@ -151,14 +144,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                     parts = row[0].decode("utf-8").split("-")[0].split(".")
                     return tuple(part for part in parts)
                 return None
-        except (OperationalError, ProgrammingError) as e:
-            logger.warning(
-                f"Failed to get database version: {e}. "
-                f"Falling back to driver version."
-            )
-            return _db_api_version()
-        except DatabaseError as e:
-            logger.error(f"Database error while getting version: {e}")
+        except Error as e:
+            logger.error(f"Error while getting version: {e}")
             raise
 
     def check_database_version_supported(self):
