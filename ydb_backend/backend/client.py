@@ -13,7 +13,7 @@ class DatabaseClient(BaseDatabaseClient):
         args = [cls.executable_name]
 
         if "HOST" in settings_dict:
-            args.extend(["--host", settings_dict["host"]])
+            args.extend(["--host", settings_dict["HOST"]])
 
         if "PORT" in settings_dict:
             args.extend(["--port", settings_dict["PORT"]])
@@ -27,8 +27,6 @@ class DatabaseClient(BaseDatabaseClient):
         if parameters:
             args.extend(parameters)
 
-        env = {
-            "YDB_ROOT_CERTIFICATES": settings_dict.get("ROOT_CERTIFICATES", ""),
-        }
+        env = {}
 
         return args, env

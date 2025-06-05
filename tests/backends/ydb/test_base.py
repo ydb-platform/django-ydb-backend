@@ -11,7 +11,6 @@ class TestDatabaseWrapper(SimpleTestCase):
 
     def test_get_connection_params(self):
         params = connection.get_connection_params()
-        self.assertIn("name", params)
         self.assertIn("host", params)
         self.assertIn("port", params)
         self.assertIn("database", params)

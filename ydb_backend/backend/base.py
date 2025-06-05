@@ -205,18 +205,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             "database": settings_dict["DATABASE"],
             **settings_dict.get("OPTIONS", {}),
         }
-        if settings_dict.get("NAME"):
-            conn_params["name"] = settings_dict["NAME"]
+
         if settings_dict.get("CREDENTIALS"):
             conn_params["credentials"] = settings_dict["CREDENTIALS"]
-        if settings_dict.get("ROOT_CERTIFICATES"):
-            conn_params["root_certificates"] = settings_dict["ROOT_CERTIFICATES"]
-        if settings_dict.get("CONNECTION_TIMEOUT"):
-            conn_params["connection_timeout"] = settings_dict["CONNECTION_TIMEOUT"]
-        if settings_dict.get("REQUEST_TIMEOUT"):
-            conn_params["request_timeout"] = settings_dict["REQUEST_TIMEOUT"]
-        if settings_dict.get("TIME_ZONE"):
-            conn_params["time_zone"] = settings_dict["TIME_ZONE"]
+        if settings_dict.get("ROOT_CERTIFICATES_PATH"):
+            conn_params["root_certificates_path"] = settings_dict[
+                "ROOT_CERTIFICATES_PATH"
+            ]
 
         return conn_params
 
