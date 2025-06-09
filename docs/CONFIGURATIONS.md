@@ -82,4 +82,4 @@ DATABASES = {
 ```
 
 #### Anonymous Credentials
-We don't have to pass the Credentials parameter to the settings.py.
+We don't have to pass the Credentials parameter to the settings.
