@@ -2,7 +2,7 @@ Configurations
 ---
 
 To set up your Django project to use a YDB backend, you only need to modify a few of Django's built-in configuration settings. This project does not require any additional custom configuration options.
-(Summary: Just adjust standard Django settings for YDB—no extra YDB-specific configurations are needed.)
+(Summary: Just adjust standard Django settings for YDB—no extra YDB-specific configurations are needed).
 
 ### DATABASES
 
@@ -27,7 +27,7 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
 ### Authentication Methods
 
 #### Static Credentials
-To use Static Credentials you should provide username/password
+To use Static Credentials you should provide username/password.
 
 ```json
 DATABASES = {
@@ -43,7 +43,7 @@ DATABASES = {
 ```
 
 #### Access Token Credentials
-To use Access Token Credentials you should provide token
+To use Access Token Credentials you should provide token.
 
 ```json
 
@@ -59,7 +59,7 @@ DATABASES = {
 ```
 
 #### Service Account Credentials
-To use Service Account Credentials, you should provide service_account_json
+To use Service Account Credentials, you should provide service_account_json.
 
 ```json
 
@@ -82,4 +82,4 @@ DATABASES = {
 ```
 
 #### Anonymous Credentials
-We don't have to pass the Credentials parameter to the settings.py
+We don't have to pass the Credentials parameter to the settings.py.
