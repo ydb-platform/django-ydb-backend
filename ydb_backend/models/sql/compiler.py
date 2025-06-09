@@ -43,6 +43,66 @@ _ydb_types = {
 }
 
 
+def _replace_simple_types(sql, params, columns):
+    if len(params) == 0:
+        return sql, params, columns
+
+    new_sql_parts, new_params, new_columns = [], [], []
+    param_iter = iter(params)
+    column_iter = iter(columns) if columns else iter([])
+
+    parts = sql.split("%s")
+
+    for i, part in enumerate(parts):
+        new_sql_parts.append(part)
+        if i < len(parts) - 1:
+            param = next(param_iter)
+            column = next(column_iter, None) if columns else None
+            if isinstance(param, (int, float, bool, str)):
+                if isinstance(param, str):
+                    param = param.replace("'", "''")
+                    new_sql_parts.append(f"'{param}'")
+                else:
+                    new_sql_parts.append(str(param))
+            else:
+                new_sql_parts.append("%s")
+                new_params.append(param)
+                if column is not None:
+                    new_columns.append(column)
+
+    new_sql = "".join(new_sql_parts)
+    return new_sql, tuple(new_params), new_columns
+
+
+def _replace_select_part_only(sql, params, columns):
+    if len(params) == 0:
+        return sql, params, columns
+
+    select_part, *other_parts = re.split(
+        r"(?i)\s(WHERE|HAVING|GROUP BY|ORDER BY|LIMIT|OFFSET)\s", sql, maxsplit=1
+    )
+
+    if not other_parts:
+        return _replace_simple_types(sql, params, columns)
+
+    select_params_count = select_part.count("%s")
+    processed_select, remaining_select_params, remaining_columns = (
+        _replace_simple_types(
+            select_part,
+            params[:select_params_count],
+            columns[:select_params_count] if columns is not None else None
+        )
+    )
+
+    new_sql = processed_select + " " + " ".join(other_parts)
+    remaining_params = remaining_select_params + params[select_params_count:]
+
+    if columns:
+        remaining_columns += columns[select_params_count:]
+
+    return new_sql, remaining_params, remaining_columns
+
+
 def _extract_column_names(sql_text):
     column_pattern = re.compile(r"""
             (?:`[^`]+`\.`[^`]+`(?!\w)
@@ -302,6 +362,7 @@ class SQLCompiler(SQLCompiler):
                 return sql, params
 
             sql, params = " ".join(result), tuple(params)
+            sql, params, columns = _replace_select_part_only(sql, params, columns)
             sql, placeholder_rows = _replace_placeholders(sql)
 
             field_types = {
