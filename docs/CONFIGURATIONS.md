@@ -36,7 +36,6 @@ To use Static Credentials you should provide username/password.
 DATABASES = {
     "default": {
         "ENGINE": "ydb_backend.backend",
-        ...
         "CREDENTIALS": {
             "username": "..."
             "password": "..."
@@ -53,7 +52,6 @@ To use Access Token Credentials you should provide token.
 DATABASES = {
     "default": {
         "ENGINE": "ydb_backend.backend",
-        ...
         "CREDENTIALS": {
             "token": "..."
         },
@@ -69,7 +67,6 @@ To use Service Account Credentials, you should provide service_account_json.
 DATABASES = {
     "default": {
         "ENGINE": "ydb_backend.backend",
-        ...
         "CREDENTIALS": {
             "service_account_json": {
                 "id": "...",
