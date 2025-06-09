@@ -23,3 +23,43 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
      }
  }
  ```
+
+### Credentials
+
+To use Static Credentials you should provide username/password
+
+```json
+{
+    "credentials": {
+        "username": "...",
+        "password": "..."
+    }
+}
+```
+
+To use Access Token Credentials you should provide token
+
+```json
+{
+    "credentials": {
+        "token": "...",
+    }
+}
+```
+
+To use Service Account Credentials, you should provide service_account_json
+
+```json
+{
+    "credentials": {
+        "service_account_json": {
+            "id": "...",
+            "service_account_id": "...",
+            "created_at": "...",
+            "key_algorithm": "...",
+            "public_key": "...",
+            "private_key": "..."
+        }
+    }
+}
+```
