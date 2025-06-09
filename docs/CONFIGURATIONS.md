@@ -4,8 +4,7 @@ Configurations
 To set up your Django project to use a YDB backend, you only need to modify a few of Django's built-in configuration settings. This project does not require any additional custom configuration options.
 (Summary: Just adjust standard Django settings for YDB—no extra YDB-specific configurations are needed.)
 
-# Authentication Methods
-## DATABASES
+### DATABASES
 
 - NAME (required): traditional Django databases use this as the database name.
 - ENGINE (required): required, set to `ydb_backend.backend`.
@@ -25,19 +24,17 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
  }
  ```
 
-### Credentials
+### Authentication Methods
 
+#### Static Credentials
 To use Static Credentials you should provide username/password
 
 ```json
 DATABASES = {
     "default": {
-        "NAME": "ydb_db"
         "ENGINE": "ydb_backend.backend",
-        "HOST": "localhost",
-        "PORT": "2136",
-        "DATABASE": "/local",
-        "credentials": {
+        ...
+        "CREDENTIALS": {
             "username": "..."
             "password": "..."
         }
@@ -45,17 +42,15 @@ DATABASES = {
 }
 ```
 
+#### Access Token Credentials
 To use Access Token Credentials you should provide token
 
 ```json
 
 DATABASES = {
     "default": {
-        "NAME": "ydb_db"
         "ENGINE": "ydb_backend.backend",
-        "HOST": "localhost",
-        "PORT": "2136",
-        "DATABASE": "/local",
+        ...
         "credentials": {
             "token": "..."
         },
@@ -63,17 +58,15 @@ DATABASES = {
 }
 ```
 
+#### Service Account Credentials
 To use Service Account Credentials, you should provide service_account_json
 
 ```json
 
 DATABASES = {
     "default": {
-        "NAME": "ydb_db"
         "ENGINE": "ydb_backend.backend",
-        "HOST": "localhost",
-        "PORT": "2136",
-        "DATABASE": "/local",
+        ...
         "credentials": {
             "service_account_json": {
                 "id": "...",
@@ -87,3 +80,6 @@ DATABASES = {
     }
 }
 ```
+
+#### Anonymous Credentials
+We don't have to pass the Credentials parameter to the settings.py
