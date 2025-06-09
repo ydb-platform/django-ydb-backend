@@ -26,6 +26,9 @@ To set up your Django project to use a YDB backend, you only need to modify a fe
 
 ### Authentication Methods
 
+#### Anonymous Credentials
+We don't have to pass the Credentials parameter to the settings.
+
 #### Static Credentials
 To use Static Credentials you should provide username/password.
 
@@ -80,6 +83,3 @@ DATABASES = {
     }
 }
 ```
-
-#### Anonymous Credentials
-We don't have to pass the Credentials parameter to the settings.
