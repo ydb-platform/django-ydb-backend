@@ -51,7 +51,7 @@ DATABASES = {
     "default": {
         "ENGINE": "ydb_backend.backend",
         ...
-        "credentials": {
+        "CREDENTIALS": {
             "token": "..."
         },
     }
@@ -67,7 +67,7 @@ DATABASES = {
     "default": {
         "ENGINE": "ydb_backend.backend",
         ...
-        "credentials": {
+        "CREDENTIALS": {
             "service_account_json": {
                 "id": "...",
                 "service_account_id": "...",
