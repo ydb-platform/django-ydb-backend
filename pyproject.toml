@@ -21,12 +21,21 @@ packages = [
 ruff = "^0.9.9"
 pytest-cov = "<4.0.0"
 
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.0.0"
+sphinx-rtd-theme = "^2.0.0"
+myst-parser = "^2.0.0"
+sphinx-copybutton = "^0.5.0"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv", "examples"]
+exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv", "examples", "docs"]
 line-length = 88
 target-version = "py39"
 src = ["ydb_backend", "tests"]
