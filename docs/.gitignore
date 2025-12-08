@@ -1,0 +1,7 @@
+# Sphinx build output
+_build/
+
+# Compiled Python files
+__pycache__/
+*.py[cod]
+
