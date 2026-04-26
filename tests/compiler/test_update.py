@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.test import TransactionTestCase
 
 from .models import Product
+from .models import ProductReview
 from .models import SmartHomeDevice
 
 
@@ -46,6 +47,23 @@ class TestUpdate(TransactionTestCase):
 
         updated = Product.objects.get(sku="P3003")
         self.assertEqual(updated.stock, 25)
+
+    def test_foreign_key_filter_uses_target_field_type(self):
+        product = Product.objects.create(
+            sku="P4004",
+            name="Smart Lock",
+            category="Security",
+            price=499,
+            stock=15,
+        )
+        ProductReview.objects.create(product=product, rating=5)
+
+        reviews = ProductReview.objects.filter(product__in={product}).values_list(
+            "product",
+            "rating",
+        )
+
+        self.assertEqual(list(reviews), [(product.pk, 5)])
 
     def test_mass_update(self):
         SmartHomeDevice.objects.create(

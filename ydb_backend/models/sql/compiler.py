@@ -111,13 +111,40 @@ def _generate_params_for_update(placeholder_rows, columns, field_types, params):
     return modified_params
 
 
+def _get_field_types(model):
+    field_types = {}
+
+    for field in model._meta.get_fields():
+        if not hasattr(field, "name"):
+            continue
+
+        if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
+            field_type = field.target_field.get_internal_type()
+        else:
+            field_type = field.get_internal_type()
+
+        field_types[field.name] = field_type
+        if hasattr(field, "attname"):
+            field_types[field.attname] = field_type
+        if hasattr(field, "column"):
+            field_types[field.column] = field_type
+
+    return field_types
+
+
+def _get_field_internal_type(field):
+    if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
+        return field.target_field.get_internal_type()
+    return field.get_internal_type()
+
+
 def _get_data(fields, param_rows):
     result = []
 
     for i in range(len(param_rows)):
         struct = {}
         for j in range(len(fields)):
-            if fields[j].get_internal_type() == "DateTimeField":
+            if _get_field_internal_type(fields[j]) == "DateTimeField":
                 struct[fields[j].column] = int(param_rows[i][j].timestamp())
             else:
                 struct[fields[j].column] = param_rows[i][j]
@@ -129,7 +156,7 @@ def _get_data(fields, param_rows):
 def _get_data_type(fields):
     struct_type = ydb.StructType()
     for f in fields:
-        struct_type.add_member(f.column, _ydb_types[f.get_internal_type()])
+        struct_type.add_member(f.column, _ydb_types[_get_field_internal_type(f)])
     return ydb.ListType(struct_type)
 
 
@@ -304,11 +331,7 @@ class SQLCompiler(SQLCompiler):
             sql, params = " ".join(result), tuple(params)
             sql, placeholder_rows = _replace_placeholders(sql)
 
-            field_types = {
-                field.name: field.get_internal_type()
-                for field in self.query.model._meta.get_fields()
-                if hasattr(field, "name")
-            }
+            field_types = _get_field_types(self.query.model)
 
             modified_params = _generate_params_for_update(
                 placeholder_rows, columns, field_types, params
@@ -328,7 +351,7 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
         field_types = [
             qn(f.column) + ": " + self.connection.introspection.get_field_type(
-                f.get_internal_type(), {}
+                _get_field_internal_type(f), {}
             )
             for f in fields
         ]
@@ -449,11 +472,7 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
         sql, params = f"{delete} WHERE {where}", tuple(params)
         sql, placeholder_rows = _replace_placeholders(sql)
 
-        field_types = {
-            field.name: field.get_internal_type()
-            for field in self.query.model._meta.get_fields()
-            if hasattr(field, "name")
-        }
+        field_types = _get_field_types(self.query.model)
 
         modified_params = _generate_params_for_update(
             placeholder_rows, columns, field_types, params
@@ -565,11 +584,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         sql, params = " ".join(result), tuple(update_params + params)
         sql, placeholder_rows = _replace_placeholders(sql)
 
-        field_types = {
-            field.name: field.get_internal_type()
-            for field in self.query.model._meta.get_fields()
-            if hasattr(field, "name")
-        }
+        field_types = _get_field_types(self.query.model)
 
         modified_params = _generate_params_for_update(
             placeholder_rows, columns, field_types, params
