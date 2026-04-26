@@ -34,6 +34,17 @@ class Product(models.Model):
         )
 
 
+class ProductReview(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    rating = models.IntegerField()
+
+    def __str__(self):
+        return (
+            f"{self.product_id} "
+            f"{self.rating}"
+        )
+
+
 class SimpleItem(models.Model):
     code = models.CharField(max_length=20, primary_key=True)
     category = models.CharField(max_length=30)

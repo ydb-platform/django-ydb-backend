@@ -3,9 +3,44 @@ Fields
 
 YDB backend support django builtin fields.
 
-**Note:** [ForeignKey](https://docs.djangoproject.com/en/dev/ref/models/fields/#foreignkey), [ManyToManyField](https://docs.djangoproject.com/en/dev/ref/models/fields/#manytomanyfield)
-or even [OneToOneField](https://docs.djangoproject.com/en/dev/ref/models/fields/#onetoonefield) could be used with YDB backend.
-However, it's important to note that these relationships won't enforce database-level constraints, which may lead to potential data consistency issues.
+## Relationship fields
+
+[ForeignKey](https://docs.djangoproject.com/en/dev/ref/models/fields/#foreignkey),
+[ManyToManyField](https://docs.djangoproject.com/en/dev/ref/models/fields/#manytomanyfield),
+and [OneToOneField](https://docs.djangoproject.com/en/dev/ref/models/fields/#onetoonefield)
+can be used by the Django ORM, but YDB doesn't enforce database-level foreign
+key constraints or uniqueness constraints.
+
+The backend stores `ForeignKey` values as regular scalar columns. For example:
+
+```python
+class Product(models.Model):
+    sku = models.CharField(max_length=20, primary_key=True)
+
+
+class ProductReview(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    rating = models.IntegerField()
+```
+
+`ProductReview.product` is stored as a `product_id` column with the same YDB type
+as `Product.sku`. The schema doesn't include `FOREIGN KEY`, `REFERENCES`,
+database-level `ON DELETE` rules, or unique constraints for relation fields.
+
+This means inserts and updates write the referenced primary key value only:
+
+```python
+ProductReview.objects.create(product_id="SKU-1", rating=5)
+```
+
+YDB accepts this row even if no `Product(sku="SKU-1")` exists. Django ORM
+cascade behavior applies only when deleting objects through Django. Raw SQL,
+external writers, or direct `*_id` assignments may create orphan rows.
+
+`OneToOneField` is stored like a `ForeignKey`; its one-to-one uniqueness is not
+guaranteed by YDB. `ManyToManyField` uses a Django through table with scalar
+`*_id` columns, but uniqueness of pairs and database-level cascade behavior are
+not enforced by YDB.
 
 
 Django fields
