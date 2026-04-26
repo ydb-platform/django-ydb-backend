@@ -133,3 +133,13 @@ dmypy.json
 
 # VSCode
 .vscode
+
+# Local AI assistant files
+.aider*
+.claude/
+.codex/
+.continue/
+.cursor/
+.windsurf/
+.cline/
+.roo/
