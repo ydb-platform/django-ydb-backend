@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
 from django.db import connection
+from django.db.utils import NotSupportedError
 from django.test import SimpleTestCase
+from ydb_backend.backend.base import DatabaseWrapper
 
 
 class TestDatabaseWrapper(SimpleTestCase):
@@ -30,3 +34,37 @@ class TestDatabaseWrapper(SimpleTestCase):
 
     def test_is_usable(self):
         self.assertTrue(connection.is_usable())
+
+
+class TestDatabaseVersion(SimpleTestCase):
+    def test_parse_numeric_database_version(self):
+        version = DatabaseWrapper._parse_database_version(b"23.4.11-ydb")
+
+        self.assertEqual(version, (23, 4, 11))
+
+    def test_parse_main_database_version(self):
+        version = DatabaseWrapper._parse_database_version(b"main")
+
+        self.assertEqual(version, ("main",))
+
+    def test_check_database_version_supported_uses_numeric_comparison(self):
+        wrapper = SimpleNamespace(
+            display_name="YDB",
+            features=SimpleNamespace(minimum_database_version=(20,)),
+            get_database_version=lambda: (23, 4, 11),
+        )
+
+        DatabaseWrapper.check_database_version_supported(wrapper)
+
+    def test_check_database_version_supported_rejects_old_version(self):
+        wrapper = SimpleNamespace(
+            display_name="YDB",
+            features=SimpleNamespace(minimum_database_version=(20,)),
+            get_database_version=lambda: (19, 9),
+        )
+
+        with self.assertRaisesMessage(
+            NotSupportedError,
+            "YDB 20 or later is required (found 19.9).",
+        ):
+            DatabaseWrapper.check_database_version_supported(wrapper)

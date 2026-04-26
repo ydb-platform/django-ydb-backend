@@ -130,6 +130,16 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_describe(self, table_name):
         return self.connection.describe(table_name)
 
+    @staticmethod
+    def _parse_database_version(version):
+        if isinstance(version, bytes):
+            version = version.decode("utf-8")
+
+        version = version.split("-")[0]
+        if version == "main":
+            return ("main",)
+        return tuple(int(part) for part in version.split("."))
+
     def get_database_version(self):
         """
         Return a tuple of the database's version.
@@ -141,8 +151,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 cursor.execute("SELECT version()")
                 row = cursor.fetchone()
                 if row:
-                    parts = row[0].decode("utf-8").split("-")[0].split(".")
-                    return tuple(part for part in parts)
+                    return self._parse_database_version(row[0])
                 return None
         except Error as e:
             logger.error(f"Error while getting version: {e}")
@@ -153,12 +162,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         Raise an error if the database version isn't supported by this
         version of Django.
         """
+        database_version = self.get_database_version()
         if (
-                self.features.minimum_database_version is not None
-                and self.get_database_version() != ("main",)
-                and self.get_database_version() < self.features.minimum_database_version
+            self.features.minimum_database_version is not None
+            and database_version is not None
+            and database_version != ("main",)
+            and database_version < self.features.minimum_database_version
         ):
-            db_version = ".".join(map(str, self.get_database_version()))
+            db_version = ".".join(map(str, database_version))
             min_db_version = ".".join(map(str, self.features.minimum_database_version))
             error_msg = (
                 f"{self.display_name} {min_db_version} or later is required "
