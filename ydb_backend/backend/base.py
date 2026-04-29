@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.base import logger
@@ -135,10 +137,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if isinstance(version, bytes):
             version = version.decode("utf-8")
 
-        version = version.split("-")[0]
         if version == "main":
             return ("main",)
-        return tuple(int(part) for part in version.split("."))
+
+        parsed_version = tuple(int(part) for part in re.findall(r"\d+", version))
+        return parsed_version or None
 
     def get_database_version(self):
         """
