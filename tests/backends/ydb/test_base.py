@@ -42,10 +42,25 @@ class TestDatabaseVersion(SimpleTestCase):
 
         self.assertEqual(version, (23, 4, 11))
 
+    def test_parse_stable_database_version(self):
+        version = DatabaseWrapper._parse_database_version(b"stable-26-1-1-10")
+
+        self.assertEqual(version, (26, 1, 1, 10))
+
+    def test_parse_database_version_skips_string_literals(self):
+        version = DatabaseWrapper._parse_database_version("release-25.2-ydb-7")
+
+        self.assertEqual(version, (25, 2, 7))
+
     def test_parse_main_database_version(self):
         version = DatabaseWrapper._parse_database_version(b"main")
 
         self.assertEqual(version, ("main",))
+
+    def test_parse_unknown_database_version(self):
+        version = DatabaseWrapper._parse_database_version(b"unknown")
+
+        self.assertIsNone(version)
 
     def test_check_database_version_supported_uses_numeric_comparison(self):
         wrapper = SimpleNamespace(
