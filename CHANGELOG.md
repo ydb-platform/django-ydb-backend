@@ -1,3 +1,4 @@
+## 0.0.1b3 ##
 * Fix supported db version check
 * Fix relationship field parameter typing
 
