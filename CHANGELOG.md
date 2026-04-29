@@ -1,3 +1,5 @@
+* One more db version case fixed
+
 ## 0.0.1b3 ##
 * Fix supported db version check
 * Fix relationship field parameter typing
