@@ -1,3 +1,5 @@
+* type DateTimeField extract params as Int32, not Datetime
+
 ## 0.0.1b4 ##
 * One more db version case fixed
 
