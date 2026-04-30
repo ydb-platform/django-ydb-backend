@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from ydb_backend.models.manager import YDBManager
 
 
@@ -119,3 +120,11 @@ class NFTToken(models.Model):
             f"{self.metadata_url} "
             f"{self.last_price}"
         )
+
+
+class EventRecord(models.Model):
+    name = models.CharField(max_length=100)
+    occurred_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.name} {self.occurred_at}"
