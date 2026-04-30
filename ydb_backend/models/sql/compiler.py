@@ -98,10 +98,18 @@ def _generate_params_for_update(placeholder_rows, columns, field_types, params):
 
     for i in range(len(placeholder_rows)):
         if str(model_types[i]) == "DateTimeField":
-            modified_params[placeholder_rows[i]] = (
-                int(params[i].timestamp()),
-                _ydb_types[model_types[i]]
-            )
+            val = params[i]
+            if isinstance(val, int):
+                # val is an extract comparison (e.g. __month=1, __day=15) produced
+                # by DateTime::GetMonth / DateTime::GetDay / etc.  The column name
+                # heuristic in _extract_column_names points to the DateTimeField, but
+                # the placeholder holds an integer operand, not a timestamp.
+                modified_params[placeholder_rows[i]] = (val, ydb.PrimitiveType.Int32)
+            else:
+                modified_params[placeholder_rows[i]] = (
+                    int(val.timestamp()),
+                    _ydb_types[model_types[i]]
+                )
         else:
             modified_params[placeholder_rows[i]] = (
                 params[i],
@@ -145,7 +153,10 @@ def _get_data(fields, param_rows):
         struct = {}
         for j in range(len(fields)):
             if _get_field_internal_type(fields[j]) == "DateTimeField":
-                struct[fields[j].column] = int(param_rows[i][j].timestamp())
+                val = param_rows[i][j]
+                struct[fields[j].column] = (
+                    val if isinstance(val, int) else int(val.timestamp())
+                )
             else:
                 struct[fields[j].column] = param_rows[i][j]
         result.append(struct)

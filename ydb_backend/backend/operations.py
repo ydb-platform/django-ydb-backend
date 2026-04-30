@@ -4,6 +4,7 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 
 DATE_PARAMS_EXTRACT = [
     "year",
+    "day",
     "day_of_year",
     "month",
     "month_name",
@@ -37,7 +38,7 @@ def _common_dt_dttm_extract_funcs(lookup_type, sql, params):
         return f"DateTime::GetWeekOfYear({sql})", params
     if lookup_type == "iso_week_of_year":
         return f"DateTime::GetWeekOfYearIso8601({sql})", params
-    if lookup_type == "day_of_month":
+    if lookup_type in ("day", "day_of_month"):
         return f"DateTime::GetDayOfMonth({sql})", params
     if lookup_type == "day_of_week":
         return f"DateTime::GetDayOfWeek({sql})", params
