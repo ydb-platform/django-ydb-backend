@@ -1,12 +1,11 @@
 import datetime
 
-from django.test import SimpleTestCase
+from django.test import TransactionTestCase
 
 from .models import NullableFieldsModel
 
 
-class NullableFieldsTest(SimpleTestCase):
-    databases = {"default"}
+class NullableFieldsTest(TransactionTestCase):
 
     def _create_all_null(self):
         return NullableFieldsModel.objects.create(
@@ -89,9 +88,9 @@ class NullableFieldsTest(SimpleTestCase):
     def test_isnull_filter(self):
         self._create_all_null()
         NullableFieldsModel.objects.create(int_field=1)
-        self.assertGreaterEqual(
+        self.assertEqual(
             NullableFieldsModel.objects.filter(int_field__isnull=True).count(), 1
         )
-        self.assertGreaterEqual(
+        self.assertEqual(
             NullableFieldsModel.objects.filter(int_field__isnull=False).count(), 1
         )
