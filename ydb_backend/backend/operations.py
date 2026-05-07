@@ -397,7 +397,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value
 
     def adapt_json_value(self, value, encoder):
-        return json.load(value)
+        return json.dumps(value, cls=encoder)
 
     def bulk_insert_sql(self, fields, placeholder_rows):
         placeholder_rows_sql = (", ".join(row) for row in placeholder_rows)
