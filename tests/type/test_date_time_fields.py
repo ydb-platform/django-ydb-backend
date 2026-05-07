@@ -1,6 +1,7 @@
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone as stdlib_timezone
 
 from django.db.models.functions import TruncDate
 from django.test import SimpleTestCase
@@ -15,7 +16,7 @@ class TimeFieldsTest(SimpleTestCase):
     def setUp(self):
         self.obj = TimeModel.objects.create(
             date_field=date(2025, 1, 1),
-            datetime_field=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2025, 1, 1, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=timedelta(days=1)
         )
 
@@ -24,7 +25,7 @@ class TimeFieldsTest(SimpleTestCase):
 
         obj = TimeModel.objects.create(
             date_field=test_date,
-            datetime_field=datetime(2025, 5, 15, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2025, 5, 15, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=timedelta(days=1)
         )
 
@@ -33,7 +34,7 @@ class TimeFieldsTest(SimpleTestCase):
         self.assertIsInstance(fetched.date_field, date)
 
     def test_datetime_field(self):
-        aware_datetime = datetime(2025, 5, 15, 12, 30, 45, tzinfo=timezone.utc)
+        aware_datetime = datetime(2025, 5, 15, 12, 30, 45, tzinfo=stdlib_timezone.utc)
 
         obj = TimeModel.objects.create(
             date_field=date(2025, 5, 15),
@@ -52,7 +53,7 @@ class TimeFieldsTest(SimpleTestCase):
 
         obj = TimeModel.objects.create(
             date_field=date(2025, 5, 15),
-            datetime_field=datetime(2025, 5, 15, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2025, 5, 15, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=test_duration
         )
 
@@ -75,7 +76,9 @@ class TimeFieldsTest(SimpleTestCase):
     def test_combined_fields(self):
         test_data = {
             "date_field": date(2025, 12, 31),
-            "datetime_field": datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
+            "datetime_field": datetime(
+                2025, 12, 31, 23, 59, 59, tzinfo=stdlib_timezone.utc
+            ),
             "duration_field": timedelta(days=365)
         }
 
@@ -105,7 +108,7 @@ class TimeFieldsTest(SimpleTestCase):
         self.assertIsInstance(self.obj.date_field, date)
 
     def test_update_datetime_field(self):
-        new_datetime = datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        new_datetime = datetime(2025, 12, 31, 23, 59, 59, tzinfo=stdlib_timezone.utc)
 
         TimeModel.objects.filter(pk=self.obj.pk).update(datetime_field=new_datetime)
         self.obj.refresh_from_db()
@@ -127,7 +130,7 @@ class TimeFieldsTest(SimpleTestCase):
     def test_update_all_fields(self):
         update_data = {
             "date_field": date(2026, 1, 1),
-            "datetime_field": datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "datetime_field": datetime(2026, 1, 1, 0, 0, 0, tzinfo=stdlib_timezone.utc),
             "duration_field": timedelta(days=365)
         }
 
@@ -166,7 +169,7 @@ class TimeFieldsTest(SimpleTestCase):
     def test_datetime_field_truncate(self):
         TimeModel.objects.create(
             date_field=date(2010, 2, 17),
-            datetime_field=datetime(2016, 12, 5, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2016, 12, 5, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=timedelta(days=365)
         )
 
@@ -178,12 +181,16 @@ class TimeFieldsTest(SimpleTestCase):
     def test_field_components(self):
         TimeModel.objects.create(
             date_field=date(2023, 5, 15),
-            datetime_field=datetime(2023, 5, 15, 14, 30, 15, tzinfo=timezone.utc),
+            datetime_field=datetime(
+                2023, 5, 15, 14, 30, 15, tzinfo=stdlib_timezone.utc
+            ),
             duration_field=timedelta(hours=2, minutes=30)
         )
         TimeModel.objects.create(
             date_field=date(2024, 12, 31),
-            datetime_field=datetime(2024, 12, 31, 23, 59, 45, tzinfo=timezone.utc),
+            datetime_field=datetime(
+                2024, 12, 31, 23, 59, 45, tzinfo=stdlib_timezone.utc
+            ),
             duration_field=timedelta(days=1, seconds=3600)
         )
 
@@ -202,7 +209,7 @@ class TimeFieldsTest(SimpleTestCase):
     def test_duration_field_arithmetic(self):
         obj = TimeModel.objects.create(
             date_field=date(1987, 3, 4),
-            datetime_field=datetime(2002, 1, 1, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2002, 1, 1, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=timedelta(days=1)
         )
 
@@ -213,7 +220,7 @@ class TimeFieldsTest(SimpleTestCase):
     def test_date_field_arithmetic(self):
         obj = TimeModel.objects.create(
             date_field=date(1997, 3, 4),
-            datetime_field=datetime(2012, 2, 4, 12, 0, tzinfo=timezone.utc),
+            datetime_field=datetime(2012, 2, 4, 12, 0, tzinfo=stdlib_timezone.utc),
             duration_field=timedelta(days=1)
         )
 

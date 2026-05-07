@@ -172,6 +172,28 @@ def _get_data_type(fields):
 
 
 class SQLCompiler(SQLCompiler):
+    def get_order_by(self):
+        result = super().get_order_by()
+        # YDB rejects "ORDER BY N" (ordinal position reference, a Django 5.x
+        # optimisation via PositionRef). Re-compile affected entries with the
+        # underlying source expression so the actual column name is emitted.
+        fixed = []
+        for resolved, (o_sql, o_params, is_ref) in result:
+            expr = getattr(resolved, "expression", None)
+            is_position_ref = (
+                expr is not None
+                and hasattr(expr, "ordinal")
+                and hasattr(expr, "source")
+            )
+            if is_position_ref:
+                new_resolved = resolved.copy()
+                new_resolved.set_source_expressions([expr.source])
+                entry_sql, entry_params = self.compile(new_resolved)
+            else:
+                entry_sql, entry_params = o_sql, o_params
+            fixed.append((resolved, (entry_sql, entry_params, is_ref)))
+        return fixed
+
     def as_sql(self, with_limits=True, with_col_aliases=False):
         """
         Create the SQL for this query. Return the SQL string and list of

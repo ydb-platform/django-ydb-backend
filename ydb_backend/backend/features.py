@@ -6,6 +6,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # An optional tuple indicating the minimum supported database version.
     minimum_database_version = (20,)
     allows_group_by_selected_pks = True
+    # YDB rejects "GROUP BY 1" (ordinal reference) as a constant expression.
+    allows_group_by_select_index = False
     update_can_self_select = False
 
     # Does the backend support self-reference subqueries in the DELETE
