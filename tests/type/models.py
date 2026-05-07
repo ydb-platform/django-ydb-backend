@@ -115,3 +115,11 @@ class JSONModel(models.Model):
 
     def __str__(self):
         return f"{self.label}: {self.data}"
+
+
+class NullableJSONModel(models.Model):
+    # Used by tests skipped under issue #38 (nullable parameter typing).
+    data = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return str(self.data)
