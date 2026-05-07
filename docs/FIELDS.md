@@ -76,3 +76,4 @@ The following django fields are supported:
 | django.db.models.GenericIPAddressField     | UTF-8    | str               |                                                                                                                                                      |
 | django.db.models.BooleanField              | Bool     | boolean           |                                                                                                                                                      |
 | django.db.models.EmailField                | UTF-8    | str               |                                                                                                                                                      |
+| django.db.models.JSONField                 | Json     | dict / list / str / int / float / bool | Stored as a JSON text column. Equality filter (`filter(data=value)`) is not supported by YDB. `null=True` is not yet supported (see issue #38). |
