@@ -8,7 +8,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from django.test import SimpleTestCase
-from django.utils import timezone
+from datetime import timezone
 from ydb_backend.models.sql.compiler import _generate_params_for_update
 from ydb_backend.models.sql.compiler import _get_data
 

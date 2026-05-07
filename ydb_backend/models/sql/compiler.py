@@ -261,8 +261,14 @@ class SQLCompiler(SQLCompiler):
 
                 grouping = []
                 for g_sql, g_params in group_by:
+                    if g_params:
+                        # YDB does not support GROUP BY constant expressions.
+                        # Django 5.x may include Value nodes (e.g. True, 1) in
+                        # group_by; these compile to bare %s placeholders that
+                        # become YQL parameters, which YDB rejects.  Grouping
+                        # by a constant is a no-op anyway.
+                        continue
                     grouping.append(g_sql)
-                    params.extend(g_params)
                 if grouping:
                     if distinct_fields:
                         raise NotImplementedError(

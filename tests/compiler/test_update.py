@@ -2,7 +2,7 @@ from datetime import datetime
 
 from django.db.models import Q
 from django.test import TransactionTestCase
-from django.utils import timezone
+from datetime import timezone
 
 from .models import EventRecord
 from .models import Product
