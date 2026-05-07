@@ -1,8 +1,8 @@
 from datetime import datetime
+from datetime import timezone
 
 from django.db.models import Q
 from django.test import TransactionTestCase
-from datetime import timezone
 
 from .models import EventRecord
 from .models import Product

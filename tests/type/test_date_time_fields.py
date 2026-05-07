@@ -76,7 +76,9 @@ class TimeFieldsTest(SimpleTestCase):
     def test_combined_fields(self):
         test_data = {
             "date_field": date(2025, 12, 31),
-            "datetime_field": datetime(2025, 12, 31, 23, 59, 59, tzinfo=stdlib_timezone.utc),
+            "datetime_field": datetime(
+                2025, 12, 31, 23, 59, 59, tzinfo=stdlib_timezone.utc
+            ),
             "duration_field": timedelta(days=365)
         }
 
@@ -179,12 +181,16 @@ class TimeFieldsTest(SimpleTestCase):
     def test_field_components(self):
         TimeModel.objects.create(
             date_field=date(2023, 5, 15),
-            datetime_field=datetime(2023, 5, 15, 14, 30, 15, tzinfo=stdlib_timezone.utc),
+            datetime_field=datetime(
+                2023, 5, 15, 14, 30, 15, tzinfo=stdlib_timezone.utc
+            ),
             duration_field=timedelta(hours=2, minutes=30)
         )
         TimeModel.objects.create(
             date_field=date(2024, 12, 31),
-            datetime_field=datetime(2024, 12, 31, 23, 59, 45, tzinfo=stdlib_timezone.utc),
+            datetime_field=datetime(
+                2024, 12, 31, 23, 59, 45, tzinfo=stdlib_timezone.utc
+            ),
             duration_field=timedelta(days=1, seconds=3600)
         )
 
