@@ -37,8 +37,8 @@ This backend uses the official [YDB-DBAPI](https://github.com/ydb-platform/ydb-p
 - INSERT/UPDATE/DELETE/UPSERT operations
 
 **Requirements:**
-- [Python](https://www.python.org/) >= 3.8
-- [Django](https://docs.djangoproject.com/) >= 3.2.0
+- [Python](https://www.python.org/) >= 3.9
+- [Django](https://docs.djangoproject.com/) 4.2 LTS, 5.2 LTS, or 6.0
 - [YDB-DBAPI](https://github.com/ydb-platform/ydb-python-dbapi) >= 0.1.8
 
 Get started
@@ -77,12 +77,13 @@ DATABASES = {
 Test
 ---
 
-To run test for this project:
+To run tests for this project:
 
 ```shell
 $ git clone https://github.com/ydb-platform/django-ydb-backend.git
 $ cd django-ydb-backend
-# docker and docker-compose are required.
-$ docker-compose up
-$ python tests/runtests.py
+# docker and docker compose are required.
+$ docker compose up -d --wait
+$ pip install poetry && poetry install
+$ poetry run python tests/runtests.py
 ```
