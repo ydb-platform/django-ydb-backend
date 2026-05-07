@@ -1,4 +1,4 @@
-name: Lint
+name: Package build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  ruff:
+  package:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,8 +23,15 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      - name: Install packages
-        run: poetry install
+      - name: Build sdist and wheel
+        run: poetry build
 
-      - name: Run linter
-        run: poetry run ruff check
+      - name: Validate package metadata
+        run: |
+          pip install twine
+          twine check dist/*
+
+      - name: Verify package contents
+        run: |
+          pip install check-wheel-contents
+          check-wheel-contents dist/*.whl

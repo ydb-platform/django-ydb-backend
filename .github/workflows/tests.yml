@@ -7,11 +7,11 @@ on:
   pull_request:
 
 jobs:
-  build:
+  integration:
     runs-on: ubuntu-latest
 
     concurrency:
-      group: unit-${{ github.ref }}-${{ matrix.python-version }}-${{ matrix.django-version }}
+      group: test-${{ github.ref }}-${{ matrix.python-version }}-${{ matrix.django-version }}
       cancel-in-progress: true
 
     strategy:
