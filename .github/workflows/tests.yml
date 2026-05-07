@@ -51,18 +51,6 @@ jobs:
       - name: Override Django version
         run: poetry run pip install "django~=${{ matrix.django-version }}"
 
-      - name: Check ydb_dbapi import
-        run: |
-          poetry run python - <<'EOF'
-          import sys, traceback
-          try:
-              import ydb_dbapi
-              print("ydb_dbapi ok:", ydb_dbapi.__version__)
-          except Exception:
-              traceback.print_exc()
-              sys.exit(1)
-          EOF
-
       - name: Start YDB
         run: docker compose up -d --wait
 
