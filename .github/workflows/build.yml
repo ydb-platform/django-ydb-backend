@@ -1,0 +1,37 @@
+name: Package build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Build sdist and wheel
+        run: poetry build
+
+      - name: Validate package metadata
+        run: |
+          pip install twine
+          twine check dist/*
+
+      - name: Verify package contents
+        run: |
+          pip install check-wheel-contents
+          check-wheel-contents dist/*.whl
