@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  run:
+  integration:
     runs-on: ubuntu-latest
 
     concurrency:
