@@ -107,3 +107,19 @@ class BlogPost(models.Model):
             f"{self.views} "
             f"{self.is_published} "
         )
+
+
+class JSONModel(models.Model):
+    data = models.JSONField()
+    label = models.CharField(max_length=100, default="")
+
+    def __str__(self):
+        return f"{self.label}: {self.data}"
+
+
+class NullableJSONModel(models.Model):
+    # Used by tests skipped under issue #38 (nullable parameter typing).
+    data = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return str(self.data)
