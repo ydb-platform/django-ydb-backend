@@ -161,7 +161,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_covering_indexes = True
 
     # Does the backend support indexes on expressions?
-    supports_expression_indexes = True
+    supports_expression_indexes = False
 
     # Does the database allow more than one constraint or index on the same
     # field(s)?

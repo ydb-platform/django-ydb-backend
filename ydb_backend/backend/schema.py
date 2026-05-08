@@ -7,6 +7,7 @@ from enum import Enum
 from uuid import UUID
 
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.backends.ddl_references import Columns
 from django.db.backends.ddl_references import Statement
 from django.db.transaction import TransactionManagementError
 
@@ -94,12 +95,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         "ALTER TABLE %(table)s RENAME INDEX %(old_name)s TO %(new_name)s;"
     )
     sql_create_index = (
-        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL ON (%(columns)s);"
+        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL ON (%(columns)s)%(include)s;"
     )
-    # TODO: how to use?
-    sql_create_unique_index = (
-        "ALTER TABLE %(table)s ADD INDEX %(name)s GLOBAL UNIQUE ON (%(columns)s);"
-    )
+    # YDB has no GLOBAL UNIQUE variant in ALTER TABLE ADD INDEX syntax.
+    sql_create_unique_index = None
     sql_rename_table = "ALTER TABLE %(old_table)s RENAME TO %(new_table)s;"
     sql_create_column = "ALTER TABLE %(table)s ADD COLUMN %(column)s %(definition)s;"
     sql_alter_column = "ALTER TABLE %(table)s %(changes)s;"
@@ -132,6 +131,14 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_alter_column_default = None
     sql_alter_column_no_default = None
     sql_alter_column_no_default_null = None
+
+    def _index_include_sql(self, model, columns):
+        if not columns or not self.connection.features.supports_covering_indexes:
+            return ""
+        return Statement(
+            " COVER (%(columns)s)",
+            columns=Columns(model._meta.db_table, columns, self.quote_name),
+        )
 
     def prepare_default(self, value):
         """
