@@ -99,7 +99,8 @@ def _infer_ydb_type(value):
         return ydb.PrimitiveType.Utf8
     if isinstance(value, bytes):
         return ydb.PrimitiveType.String
-    raise ValueError(f"Cannot infer YDB type for value {value!r} of type {type(value)}")
+    msg = f"Cannot infer YDB type for value {value!r} of type {type(value)}"
+    raise ValueError(msg)
 
 
 def _generate_params_for_update(placeholder_rows, columns, field_types, params):
