@@ -1,4 +1,8 @@
 import re
+from datetime import date
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
 
 import ydb
 from django.core.exceptions import EmptyResultSet
@@ -89,6 +93,8 @@ def _replace_placeholders(sql):
 
 def _infer_ydb_type(value):
     """Infer a YDB type from a Python value when no column name is available."""
+    if value is None:
+        return ydb.OptionalType(ydb.PrimitiveType.Utf8)
     if isinstance(value, bool):
         return ydb.PrimitiveType.Bool
     if isinstance(value, int):
@@ -99,6 +105,10 @@ def _infer_ydb_type(value):
         return ydb.PrimitiveType.Utf8
     if isinstance(value, bytes):
         return ydb.PrimitiveType.String
+    if isinstance(value, UUID):
+        return ydb.PrimitiveType.UUID
+    if isinstance(value, Decimal):
+        return ydb.DecimalType(22, 9)
     msg = f"Cannot infer YDB type for value {value!r} of type {type(value)}"
     raise ValueError(msg)
 
@@ -113,7 +123,15 @@ def _generate_params_for_update(placeholder_rows, columns, field_types, params):
 
         if field_type is None:
             # Column unknown (e.g. Value() annotation in SELECT) — infer from value.
-            modified_params[placeholder] = (val, _infer_ydb_type(val))
+            # datetime/date need the same timestamp conversion as DateTimeField.
+            if isinstance(val, datetime):
+                modified_params[placeholder] = (
+                    int(val.timestamp()), ydb.PrimitiveType.Datetime
+                )
+            elif isinstance(val, date):
+                modified_params[placeholder] = (val, ydb.PrimitiveType.Date)
+            else:
+                modified_params[placeholder] = (val, _infer_ydb_type(val))
         elif field_type == "DateTimeField":
             if isinstance(val, int):
                 # val is an extract comparison (e.g. __month=1, __day=15) produced

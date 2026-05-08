@@ -168,6 +168,9 @@ class TestIndexIntegration(TransactionTestCase):
         IndexTestBook.objects.create(**kwargs)
 
     def _select_view(self, index_name, where_col, where_val, select_cols="*"):
+        # Raw f-string interpolation is intentional: the YDB VIEW hint syntax
+        # (`TABLE VIEW INDEX`) has no ORM equivalent, and all values here are
+        # controlled test literals, never user input.
         table = IndexTestBook._meta.db_table
         sql = (
             f"SELECT {select_cols} FROM `{table}` VIEW `{index_name}`"
