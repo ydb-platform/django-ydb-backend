@@ -83,6 +83,10 @@ class NullableFieldsTest(TransactionTestCase):
         self.assertAlmostEqual(fetched.float_field, 3.14, places=5)
         self.assertIs(fetched.bool_field, True)
         self.assertEqual(fetched.date_field, datetime.date(2024, 6, 15))
+        self.assertEqual(
+            fetched.datetime_field,
+            datetime.datetime(2024, 6, 15, 12, 0, 0),  # noqa: DTZ001
+        )
         self.assertEqual(fetched.text_field, "long text")
 
     def test_isnull_filter(self):
