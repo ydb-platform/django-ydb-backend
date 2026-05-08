@@ -241,6 +241,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         """
         Backend-specific implementation to enable or disable autocommit.
         """
+        conn = self.connection
+        if autocommit:
+            conn.interactive_transaction = False
+        else:
+            conn.interactive_transaction = True
+            conn.begin()
 
     def is_usable(self):
         """

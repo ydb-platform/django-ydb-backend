@@ -87,34 +87,46 @@ def _replace_placeholders(sql):
     return sql, placeholder_rows
 
 
+def _infer_ydb_type(value):
+    """Infer a YDB type from a Python value when no column name is available."""
+    if isinstance(value, bool):
+        return ydb.PrimitiveType.Bool
+    if isinstance(value, int):
+        return ydb.PrimitiveType.Int64
+    if isinstance(value, float):
+        return ydb.PrimitiveType.Double
+    if isinstance(value, str):
+        return ydb.PrimitiveType.Utf8
+    if isinstance(value, bytes):
+        return ydb.PrimitiveType.String
+    raise ValueError(f"Cannot infer YDB type for value {value!r} of type {type(value)}")
+
+
 def _generate_params_for_update(placeholder_rows, columns, field_types, params):
-    model_types = []
-
-    for column in columns:
-        if column in field_types:
-            model_types.append(field_types[column])
-
     modified_params = {}
 
-    for i in range(len(placeholder_rows)):
-        if str(model_types[i]) == "DateTimeField":
-            val = params[i]
+    for i, placeholder in enumerate(placeholder_rows):
+        column = columns[i] if i < len(columns) else None
+        field_type = field_types.get(column) if column is not None else None
+        val = params[i]
+
+        if field_type is None:
+            # Column unknown (e.g. Value() annotation in SELECT) — infer from value.
+            modified_params[placeholder] = (val, _infer_ydb_type(val))
+        elif field_type == "DateTimeField":
             if isinstance(val, int):
                 # val is an extract comparison (e.g. __month=1, __day=15) produced
                 # by DateTime::GetMonth / DateTime::GetDay / etc.  The column name
                 # heuristic in _extract_column_names points to the DateTimeField, but
                 # the placeholder holds an integer operand, not a timestamp.
-                modified_params[placeholder_rows[i]] = (val, ydb.PrimitiveType.Int32)
+                modified_params[placeholder] = (val, ydb.PrimitiveType.Int32)
             else:
-                modified_params[placeholder_rows[i]] = (
+                modified_params[placeholder] = (
                     int(val.timestamp()),
-                    _ydb_types[model_types[i]]
+                    _ydb_types[field_type],
                 )
         else:
-            modified_params[placeholder_rows[i]] = (
-                params[i],
-                _ydb_types[model_types[i]]
-            )
+            modified_params[placeholder] = (val, _ydb_types[field_type])
 
     return modified_params
 
@@ -451,7 +463,7 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
         with self.connection.cursor() as cursor:
             for sql, params in self.as_sql():
-                cursor.execute_scheme(sql, params)
+                cursor.execute(sql, params)
 
             if not returning_fields:
                 return []
