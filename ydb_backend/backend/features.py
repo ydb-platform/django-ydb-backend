@@ -114,8 +114,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_column_check_constraints = False
     supports_table_check_constraints = False
 
-    # Does the backend support introspection of CHECK constraints?
-    can_introspect_check_constraints = True
+    # YDB does not support CHECK constraints, so there is nothing to introspect.
+    can_introspect_check_constraints = False
 
     # Does the backend support functions in defaults?
     supports_expression_defaults = False
@@ -137,6 +137,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
 
     # Does the backend support window expressions (expression OVER (...))?
     supports_over_clause = True
+    # YDB supports ROWS BETWEEN N PRECEDING/FOLLOWING, but RANGE with bounded
+    # offsets (RANGE BETWEEN N PRECEDING AND ...) is not supported.
     only_supports_unbounded_with_preceding_and_following = True
 
     # SQL to create a table with a composite primary key for use by the Django
