@@ -1,3 +1,6 @@
+* fix: support Optional<T> for nullable fields in insert and upsert
+* fix: correct adapt_json_value and add JSONField tests
+
 ## 0.0.1b5 ##
 * type DateTimeField extract params as Int32, not Datetime
 
