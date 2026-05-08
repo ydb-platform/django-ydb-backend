@@ -280,11 +280,11 @@ class TestWindowFunctions(TransactionTestCase):
             .values_list("id", "running")
             .order_by("id")
         )
-        self.assertEqual(
+        # Assert only the OVER clause — the surrounding SELECT format varies
+        # across Django versions (e.g. 4.2 omits the AS alias on the id column).
+        self.assertIn(
+            f"SUM(`{table}`.`bounty`) OVER (ORDER BY `{table}`.`id`) AS `running`",
             str(qs.query),
-            f"SELECT `{table}`.`id` AS `id`, SUM(`{table}`.`bounty`) OVER"
-            f" (ORDER BY `{table}`.`id`) AS `running`"
-            f" FROM `{table}` ORDER BY `{table}`.`id` ASC",
         )
 
         rows = list(qs)
@@ -311,11 +311,13 @@ class TestWindowFunctions(TransactionTestCase):
             .values_list("id", "sliding")
             .order_by("id")
         )
-        self.assertEqual(
-            str(qs.query),
-            f"SELECT `{table}`.`id` AS `id`, SUM(`{table}`.`bounty`) OVER"
+        # Assert only the OVER clause — the surrounding SELECT format varies
+        # across Django versions (e.g. 4.2 omits the AS alias on the id column).
+        self.assertIn(
+            f"SUM(`{table}`.`bounty`) OVER"
             f" (ORDER BY `{table}`.`id` ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)"
-            f" AS `sliding` FROM `{table}` ORDER BY `{table}`.`id` ASC",
+            f" AS `sliding`",
+            str(qs.query),
         )
 
         rows = list(qs)
