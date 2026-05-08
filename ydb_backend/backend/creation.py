@@ -1,5 +1,7 @@
+import os
 from abc import ABC
 
+import ydb
 from django.conf import settings
 from django.db.backends.base.creation import BaseDatabaseCreation
 
@@ -9,6 +11,11 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
     Encapsulate backends-specific differences pertaining to creation and
     destruction of the test database.
     """
+
+    def _get_test_db_name(self):
+        name = super()._get_test_db_name()
+        suffix = os.environ.get("DJANGO_TEST_DB_SUFFIX", "")
+        return f"{name}_{suffix}" if suffix else name
 
     def _get_test_database_path(self, test_database_name=None):
         test_database_name = test_database_name or self._get_test_db_name()
@@ -53,7 +60,10 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
     def _drop_test_tables(self, test_database_path):
         connection = self._get_prefixed_connection(test_database_path)
         try:
-            table_names = connection.get_table_names()
+            try:
+                table_names = connection.get_table_names()
+            except self.connection.Database.DatabaseError:
+                return
             with connection.cursor() as cursor:
                 for table_name in table_names:
                     quoted_name = self.connection.ops.quote_name(table_name)
@@ -84,10 +94,12 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
 
     def _destroy_test_db(self, test_database_name, verbosity):
         test_database_path = self._get_test_database_path(test_database_name)
-        connection = self._get_prefixed_connection(test_database_path)
+        self._drop_test_tables(test_database_path)
+        connection = self._get_database_connection()
         try:
-            self._drop_test_tables(test_database_path)
             connection._driver.scheme_client.remove_directory(test_database_path)
+        except ydb.SchemeError:
+            pass
         finally:
             connection.close()
 
