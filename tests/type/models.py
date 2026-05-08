@@ -118,8 +118,21 @@ class JSONModel(models.Model):
 
 
 class NullableJSONModel(models.Model):
-    # Used by tests skipped under issue #38 (nullable parameter typing).
     data = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return str(self.data)
+
+
+class NullableFieldsModel(models.Model):
+    char_field = models.CharField(max_length=100, null=True, blank=True)  # noqa: DJ001
+    int_field = models.IntegerField(null=True)
+    big_int_field = models.BigIntegerField(null=True)
+    float_field = models.FloatField(null=True)
+    bool_field = models.BooleanField(null=True)
+    date_field = models.DateField(null=True)
+    datetime_field = models.DateTimeField(null=True)
+    text_field = models.TextField(null=True, blank=True)  # noqa: DJ001
+
+    def __str__(self):
+        return f"NullableFieldsModel({self.pk})"

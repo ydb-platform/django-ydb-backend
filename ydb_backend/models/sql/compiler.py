@@ -152,13 +152,14 @@ def _get_data(fields, param_rows):
     for i in range(len(param_rows)):
         struct = {}
         for j in range(len(fields)):
-            if _get_field_internal_type(fields[j]) == "DateTimeField":
-                val = param_rows[i][j]
+            val = param_rows[i][j]
+            is_dt = _get_field_internal_type(fields[j]) == "DateTimeField"
+            if is_dt and val is not None:
                 struct[fields[j].column] = (
                     val if isinstance(val, int) else int(val.timestamp())
                 )
             else:
-                struct[fields[j].column] = param_rows[i][j]
+                struct[fields[j].column] = val
         result.append(struct)
 
     return result
@@ -167,7 +168,10 @@ def _get_data(fields, param_rows):
 def _get_data_type(fields):
     struct_type = ydb.StructType()
     for f in fields:
-        struct_type.add_member(f.column, _ydb_types[_get_field_internal_type(f)])
+        ydb_type = _ydb_types[_get_field_internal_type(f)]
+        if getattr(f, "null", False):
+            ydb_type = ydb.OptionalType(ydb_type)
+        struct_type.add_member(f.column, ydb_type)
     return ydb.ListType(struct_type)
 
 
@@ -382,12 +386,14 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         opts = self.query.get_meta()
         fields = self.query.fields or [opts.pk]
 
-        field_types = [
-            qn(f.column) + ": " + self.connection.introspection.get_field_type(
+        field_types = []
+        for f in fields:
+            yql_type = self.connection.introspection.get_field_type(
                 _get_field_internal_type(f), {}
             )
-            for f in fields
-        ]
+            if getattr(f, "null", False):
+                yql_type = f"Optional<{yql_type}>"
+            field_types.append(f"{qn(f.column)}: {yql_type}")
         in_ = f"{', '.join(field_types)}"
 
         return [

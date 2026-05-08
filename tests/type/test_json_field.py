@@ -1,14 +1,7 @@
-import unittest
-
 from django.test import SimpleTestCase
 
 from .models import JSONModel
 from .models import NullableJSONModel
-
-# Skipped until issue #38 (nullable parameter typing) is resolved.
-# _get_data_type() emits bare PrimitiveType.Json; sending NULL requires
-# Optional<Json> in the YDB struct declaration.
-_SKIP_NULLABLE = unittest.skip("blocked by issue #38: nullable JSON not yet supported")
 
 
 class JSONFieldTest(SimpleTestCase):
@@ -56,13 +49,15 @@ class JSONFieldTest(SimpleTestCase):
         obj.refresh_from_db()
         self.assertEqual(obj.data, {"v": 2, "new": "field"})
 
-    @_SKIP_NULLABLE
+
+class NullableJSONFieldTest(SimpleTestCase):
+    databases = {"default"}
+
     def test_null_stored_as_sql_null(self):
         obj = NullableJSONModel.objects.create(data=None)
         fetched = NullableJSONModel.objects.get(pk=obj.pk)
         self.assertIsNone(fetched.data)
 
-    @_SKIP_NULLABLE
     def test_isnull_filter(self):
         NullableJSONModel.objects.create(data=None)
         NullableJSONModel.objects.create(data={"x": 1})
