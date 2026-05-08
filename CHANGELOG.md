@@ -1,3 +1,4 @@
+## 0.0.1b6 ##
 * fix: support Optional<T> for nullable fields in insert and upsert
 * fix: correct adapt_json_value and add JSONField tests
 
