@@ -6,6 +6,7 @@ from datetime import timezone
 from enum import Enum
 from uuid import UUID
 
+from django.db import NotSupportedError
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Columns
 from django.db.backends.ddl_references import Statement
@@ -343,15 +344,86 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     def add_constraint(self, model, constraint):
         """
-        YDB does not support constraints - for Django compatibility only
-        User applications must enforce constraints at application level.
+        YDB enforces neither uniqueness nor check constraints.
+
+        The constraint is skipped with a warning rather than created: a hard
+        error would break ``migrate`` for stock Django apps (django.contrib.*
+        ship unique constraints), while silently materialising it would imply
+        an integrity guarantee YDB cannot provide. Enforce such invariants in
+        application code.
         """
+        logger.warning(
+            "YDB does not support database constraints; skipping %s %r on %r. "
+            "Enforce this constraint in application code.",
+            type(constraint).__name__,
+            getattr(constraint, "name", None),
+            model._meta.db_table,
+        )
 
     def remove_constraint(self, model, constraint):
         """
-        YDB does not support constraints - for Django compatibility only
-        User applications must enforce constraints at application level.
+        No-op: constraints are never created on YDB (see ``add_constraint``),
+        so there is nothing to drop. Kept for migration-executor compatibility.
         """
+
+    def alter_field(self, model, old_field, new_field, strict=False):
+        """
+        Apply the parts of a field alteration YDB supports and surface the rest
+        instead of emitting broken DDL.
+
+        Changes that would corrupt the schema (column rename, type change,
+        primary-key change) raise ``NotSupportedError`` because the model and
+        table would diverge and queries break. Changes YDB cannot apply but
+        that keep the table queryable (nullability, newly added uniqueness) are
+        skipped with a warning so ``migrate`` of stock Django apps keeps
+        working; uniqueness in particular is never enforced by YDB. Purely
+        cosmetic changes (default, help_text, verbose_name, choices, ...) are
+        no-ops, and a ``db_index`` change is applied as a secondary index.
+        """
+        old_db_params = old_field.db_parameters(connection=self.connection)
+        new_db_params = new_field.db_parameters(connection=self.connection)
+        db_table = model._meta.db_table
+
+        if old_field.column != new_field.column:
+            error_message = (
+                f"YDB cannot rename column {old_field.column!r} to "
+                f"{new_field.column!r} on {db_table!r}."
+            )
+            raise NotSupportedError(error_message)
+        if (old_db_params["type"] or "") != (new_db_params["type"] or ""):
+            error_message = (
+                f"YDB cannot change the type of column {new_field.column!r} on "
+                f"{db_table!r} ({old_db_params['type']} -> "
+                f"{new_db_params['type']})."
+            )
+            raise NotSupportedError(error_message)
+        if old_field.primary_key != new_field.primary_key:
+            error_message = f"YDB cannot alter the primary key of {db_table!r}."
+            raise NotSupportedError(error_message)
+
+        if old_field.null != new_field.null:
+            logger.warning(
+                "YDB cannot change the nullability of column %r on %r after "
+                "creation; skipping.",
+                new_field.column,
+                db_table,
+            )
+        if new_field.unique and not old_field.unique:
+            logger.warning(
+                "YDB does not enforce uniqueness for column %r on %r; skipping. "
+                "Enforce it in application code.",
+                new_field.column,
+                db_table,
+            )
+
+        # Adding or dropping a secondary index for the field is supported.
+        if old_field.db_index and not new_field.db_index:
+            for index_name in self._constraint_names(
+                model, [old_field.column], index=True
+            ):
+                self.execute(self._delete_index_sql(model, index_name))
+        elif new_field.db_index and not old_field.db_index:
+            self.deferred_sql.extend(self._field_indexes_sql(model, new_field))
 
     def alter_db_table_comment(self, model, old_db_table_comment, new_db_table_comment):
         """
@@ -367,9 +439,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     def alter_unique_together(self, model, old_unique_together, new_unique_together):
         """
-        YDB does not enforce unique constraints
-        For Django compatibility only - implement uniqueness checks in app logic
+        YDB does not enforce uniqueness. A newly added ``unique_together`` is
+        skipped with a warning (so ``migrate`` of apps such as
+        django.contrib.contenttypes keeps working); clearing one is a no-op.
         """
+        old = {tuple(fields) for fields in (old_unique_together or ())}
+        new = {tuple(fields) for fields in (new_unique_together or ())}
+        added = new - old
+        if added:
+            logger.warning(
+                "YDB does not enforce unique_together %s on %r; skipping. "
+                "Enforce uniqueness in application code.",
+                sorted(added),
+                model._meta.db_table,
+            )
 
     def _alter_column_null_sql(self, model, old_field, new_field):
         """

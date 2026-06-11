@@ -1,10 +1,14 @@
+from django.db import NotSupportedError
 from django.db import connection
 from django.db import models
 from django.db.models import CASCADE
+from django.db.models import CheckConstraint
 from django.db.models import ForeignKey
 from django.db.models import Index
 from django.db.models import IntegerField
+from django.db.models import Q
 from django.db.models import TextField
+from django.db.models import UniqueConstraint
 from django.test import TransactionTestCase
 
 from ..models import DbColumnModel
@@ -110,12 +114,7 @@ class TestDatabaseSchema(TransactionTestCase):
                 field_to_remove
             )
 
-        with connection.cursor() as cursor:
-            self.assertTrue(
-                len(connection.introspection.get_sequences(
-                    cursor,
-                    "backends_mymodel"
-                )) > 3)
+        self.assertIn("patronymic", _get_columns("backends_mymodel"))
 
         with connection.schema_editor() as editor:
             editor.remove_field(
@@ -123,11 +122,7 @@ class TestDatabaseSchema(TransactionTestCase):
                 field_to_remove
             )
 
-        with connection.cursor() as cursor:
-            self.assertTrue(
-                len(connection.introspection.get_sequences(
-                    cursor, "backends_mymodel"
-                )) > 2)
+        self.assertNotIn("patronymic", _get_columns("backends_mymodel"))
 
     def test_create_model_with_db_column(self):
         columns = _get_columns("backends_dbcolumnmodel")
@@ -243,3 +238,111 @@ class TestDatabaseSchema(TransactionTestCase):
 
         index_true = _get_indexes()
         self.assertNotIn("composite_idx_w_name", index_true)
+
+
+def _named_field(field_class, name, **kwargs):
+    field = field_class(**kwargs)
+    field.set_attributes_from_name(name)
+    return field
+
+
+_SCHEMA_LOGGER = "django_ydb_backend.ydb_backend.backend.schema"
+
+
+class TestUnsupportedSchemaOperations(TransactionTestCase):
+    """
+    YDB cannot enforce constraints or alter existing columns. Operations that
+    would corrupt the schema (rename/type/PK change) must fail loudly; those
+    that only drop an unenforceable guarantee (constraints, uniqueness,
+    nullability) are skipped with a warning so ``migrate`` of stock Django apps
+    keeps working instead of silently passing (issue #35).
+    """
+
+    databases = {"default"}
+
+    def _assert_raises(self, method_name, *args):
+        editor = connection.schema_editor()
+        with self.assertRaises(NotSupportedError):
+            getattr(editor, method_name)(*args)
+
+    def _assert_warns(self, method_name, *args):
+        editor = connection.schema_editor()
+        with self.assertLogs(_SCHEMA_LOGGER, level="WARNING"):
+            getattr(editor, method_name)(*args)
+
+    def test_add_unique_constraint_warns(self):
+        constraint = UniqueConstraint(fields=["name"], name="uq_mymodel_name")
+        self._assert_warns("add_constraint", MyModel, constraint)
+
+    def test_add_check_constraint_warns(self):
+        constraint = CheckConstraint(check=Q(id__gte=0), name="ck_mymodel_id")
+        self._assert_warns("add_constraint", MyModel, constraint)
+
+    def test_remove_constraint_is_noop(self):
+        constraint = UniqueConstraint(fields=["name"], name="uq_mymodel_name")
+        # Nothing was ever created, so dropping it must not raise.
+        connection.schema_editor().remove_constraint(MyModel, constraint)
+
+    def test_alter_field_type_change_raises(self):
+        old_field = _named_field(IntegerField, "name")
+        new_field = _named_field(TextField, "name")
+        self._assert_raises("alter_field", MyModel, old_field, new_field)
+
+    def test_alter_field_rename_raises(self):
+        old_field = _named_field(IntegerField, "old_name")
+        new_field = _named_field(IntegerField, "new_name")
+        self._assert_raises("alter_field", MyModel, old_field, new_field)
+
+    def test_alter_field_primary_key_change_raises(self):
+        old_field = _named_field(IntegerField, "name")
+        new_field = _named_field(IntegerField, "name", primary_key=True)
+        self._assert_raises("alter_field", MyModel, old_field, new_field)
+
+    def test_alter_field_nullability_change_warns(self):
+        old_field = _named_field(IntegerField, "name", null=False)
+        new_field = _named_field(IntegerField, "name", null=True)
+        self._assert_warns("alter_field", MyModel, old_field, new_field)
+
+    def test_alter_field_add_unique_warns(self):
+        old_field = _named_field(IntegerField, "name")
+        new_field = _named_field(IntegerField, "name", unique=True)
+        self._assert_warns("alter_field", MyModel, old_field, new_field)
+
+    def test_alter_field_default_change_is_noop(self):
+        # Defaults are not stored in YDB, so changing one is a harmless no-op.
+        old_field = _named_field(IntegerField, "name", default=1)
+        new_field = _named_field(IntegerField, "name", default=2)
+        connection.schema_editor().alter_field(MyModel, old_field, new_field)
+
+    def test_alter_unique_together_add_warns(self):
+        self._assert_warns(
+            "alter_unique_together", MyModel, [], [("id", "name")]
+        )
+
+    def test_alter_unique_together_clear_is_noop(self):
+        connection.schema_editor().alter_unique_together(
+            MyModel, [("id", "name")], []
+        )
+
+    def test_alter_field_db_index_add_and_drop(self):
+        def index_columns():
+            with connection.cursor() as cursor:
+                constraints = connection.introspection.get_constraints(
+                    cursor, "backends_mymodel"
+                )
+            return [
+                value["columns"]
+                for value in constraints.values()
+                if value["index"] and not value["primary_key"]
+            ]
+
+        no_index = _named_field(TextField, "name")
+        indexed = _named_field(TextField, "name", db_index=True)
+
+        with connection.schema_editor() as editor:
+            editor.alter_field(MyModel, no_index, indexed)
+        self.assertIn(["name"], index_columns())
+
+        with connection.schema_editor() as editor:
+            editor.alter_field(MyModel, indexed, no_index)
+        self.assertNotIn(["name"], index_columns())

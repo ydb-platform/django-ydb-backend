@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+import ydb
 from django.db.backends.base.introspection import BaseDatabaseIntrospection
 from django.db.backends.base.introspection import FieldInfo as BaseFieldInfo
 from django.db.backends.base.introspection import TableInfo as BaseTableInfo
@@ -7,34 +8,63 @@ from django.db.backends.base.introspection import TableInfo as BaseTableInfo
 FieldInfo = namedtuple("FieldInfo", BaseFieldInfo._fields)
 TableInfo = namedtuple("TableInfo", BaseTableInfo._fields)
 
+# YDB primitive type names that back Django auto-increment (Serial) primary
+# keys. YDB does not expose "Serial" through describe() — a Serial column is
+# reported as its underlying integer type — so an integer primary key is the
+# only signal available for auto-increment detection.
+_INTEGER_TYPE_NAMES = frozenset(
+    {
+        "Int8",
+        "Int16",
+        "Int32",
+        "Int64",
+        "Uint8",
+        "Uint16",
+        "Uint32",
+        "Uint64",
+    }
+)
 
-def _create_sequences_info(table_name, column_name):
-    sequences = []
-    for field in column_name:
-        sequence_info = {
-            "table_name": table_name,
-            "column_name": field.name,
-        }
-        sequences.append(sequence_info)
-    return sequences
+
+def _resolve_base_type(column_type):
+    """
+    Unwrap a YDB ``Optional<T>`` column type, returning ``(base_type,
+    is_nullable)``. Non-optional columns are NOT NULL.
+    """
+    if isinstance(column_type, ydb.OptionalType):
+        return column_type.item, True
+    return column_type, False
+
+
+def _ydb_type_name(base_type):
+    """Stable string key for a YDB column base type, e.g. ``Int32``/``Decimal``."""
+    if isinstance(base_type, ydb.DecimalType):
+        return "Decimal"
+    return getattr(base_type, "name", str(base_type))
 
 
 def _create_table_desc_info(columns):
-    sequences = []
-    for field in columns:
-        sequence_info = FieldInfo(
-            name=field.name,
-            type_code=str(field.type),
-            display_size=None,  # TODO: fill attributes with values
-            internal_size=None,
-            precision=None,
-            scale=None,
-            null_ok=None,
-            default=None,
-            collation=None,
+    fields = []
+    for column in columns:
+        base_type, is_nullable = _resolve_base_type(column.type)
+        precision = scale = None
+        if isinstance(base_type, ydb.DecimalType):
+            precision = base_type.precision
+            scale = base_type.scale
+        fields.append(
+            FieldInfo(
+                name=column.name,
+                type_code=_ydb_type_name(base_type),
+                display_size=None,
+                internal_size=None,
+                precision=precision,
+                scale=scale,
+                null_ok=is_nullable,
+                default=None,
+                collation=None,
+            )
         )
-        sequences.append(sequence_info)
-    return sequences
+    return fields
 
 
 def _create_table_info(table_scheme_entry):
@@ -51,15 +81,17 @@ def _get_constraint_tuple(
     foreign_key=None,
     is_check=False,
     is_index=True,
+    orders=None,
     _type=None,
 ):
     return {
-        "columns": columns,
+        "columns": list(columns),
         "primary_key": is_primary_key,
-        "unique": is_unique,  # TODO: for indexes define
+        "unique": is_unique,
         "foreign_key": foreign_key,
         "check": is_check,
         "index": is_index,
+        "orders": orders,
         "type": _type,
     }
 
@@ -67,54 +99,58 @@ def _get_constraint_tuple(
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     """Encapsulate backends-specific introspection utilities."""
 
+    # Reverse mapping from a YDB column type name (as produced by
+    # _ydb_type_name and stored in FieldInfo.type_code) to a Django field type.
+    # Used by Django introspection and `inspectdb`. The mapping is necessarily
+    # lossy because several Django fields share one YDB type (e.g. CharField and
+    # TextField both map to Utf8).
     data_types_reverse = {
-        0: "AutoField",
-        1: "BigAutoField",
-        2: "BinaryField",
-        3: "BooleanField",
-        4: "CharField",
-        5: "DateField",
-        6: "DateTimeField",
-        7: "DecimalField",
-        8: "DurationField",
-        9: "FileField",
-        10: "FilePathField",
-        11: "FloatField",
-        12: "DoubleField",
-        13: "IntegerField",
-        14: "BigIntegerField",
-        15: "IPAddressField",
-        16: "GenericIPAddressField",
-        17: "NullBooleanField",
-        18: "PositiveIntegerField",
-        19: "PositiveBigIntegerField",
-        20: "PositiveSmallIntegerField",
-        21: "SlugField",
-        22: "SmallAutoField",
-        23: "SmallIntegerField",
-        24: "TextField",
-        25: "UUIDField",
-        26: "JSONField",
-        27: "EnumField",
-        28: "EmailField",
+        "Bool": "BooleanField",
+        "Int8": "SmallIntegerField",
+        "Int16": "SmallIntegerField",
+        "Int32": "IntegerField",
+        "Int64": "BigIntegerField",
+        "Uint8": "PositiveSmallIntegerField",
+        "Uint16": "PositiveSmallIntegerField",
+        "Uint32": "PositiveIntegerField",
+        "Uint64": "PositiveBigIntegerField",
+        "Float": "FloatField",
+        "Double": "FloatField",
+        "Decimal": "DecimalField",
+        "Utf8": "TextField",
+        "String": "BinaryField",
+        "Json": "JSONField",
+        "JsonDocument": "JSONField",
+        "Yson": "TextField",
+        "UUID": "UUIDField",
+        "Date": "DateField",
+        "Datetime": "DateTimeField",
+        "Timestamp": "DateTimeField",
+        "Interval": "DurationField",
     }
+
+    def get_yql_type(self, internal_type):
+        """
+        Forward map a Django field internal type to the YQL type string used in
+        ``DECLARE`` statements. Auto-increment fields are declared as their
+        underlying integer type because ``Serial`` cannot be used as a
+        parameter type.
+        """
+        if internal_type == "SmallAutoField":
+            return "Int16"
+        if internal_type == "AutoField":
+            return "Int32"
+        if internal_type == "BigAutoField":
+            return "Int64"
+        return self.connection.data_types[internal_type]
 
     def get_field_type(self, data_type, description):
         """
-        Hook for a database backends to use the cursor description to
-        match a Django field type to a database column.
-
-        For Oracle, the column data_type on its own is insufficient to
-        distinguish between a FloatField and IntegerField, for example.
+        Hook for a database backend to use the cursor description to match a
+        Django field type to a database column. ``data_type`` is the YDB type
+        name stored in ``FieldInfo.type_code``.
         """
-        if data_type == "SmallAutoField":
-            return "Int16"
-        if data_type == "AutoField":
-            return "Int32"
-        if data_type == "BigAutoField":
-            return "Int64"
-
-        return self.connection.data_types[data_type]
+        return self.data_types_reverse.get(data_type, "TextField")
 
     def identifier_converter(self, name):
         """
@@ -160,11 +196,22 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
     def get_sequences(self, cursor, table_name, table_fields=()):
         """
         Return a list of introspected sequences for table_name. Each sequence
-        is a dict: {'table': <table_name>, 'column': <column_name>}. An optional
-        'name' key can be added if the backends supports named sequences.
+        is a dict: {'table': <table_name>, 'column': <column_name>}.
+
+        YDB does not expose Serial metadata through describe(), so only
+        integer primary key columns (the shape produced by Django's auto
+        fields) are reported as sequences.
         """
         table_scheme_entry = self.connection.get_describe(table_name)
-        return _create_sequences_info(table_name, table_scheme_entry.columns)
+        primary_key = set(table_scheme_entry.primary_key)
+        sequences = []
+        for column in table_scheme_entry.columns:
+            if column.name not in primary_key:
+                continue
+            base_type, _ = _resolve_base_type(column.type)
+            if _ydb_type_name(base_type) in _INTEGER_TYPE_NAMES:
+                sequences.append({"table": table_name, "column": column.name})
+        return sequences
 
     def get_relations(self, cursor, table_name):
         """
@@ -179,7 +226,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         Return a list of primary key columns for the given table.
         """
         table_scheme_entry = self.connection.get_describe(table_name)
-        return table_scheme_entry.primary_key
+        return list(table_scheme_entry.primary_key)
 
     def get_constraints(self, cursor, table_name):
         """
@@ -197,26 +244,30 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         * orders: The order (ASC/DESC) defined for the columns of indexes
         * type: The type of the index (btree, hash, etc.)
 
-        Some backends may return special constraint names that don't exist
-        if they don't name constraints of a certain type (e.g. SQLite)
+        YDB exposes neither foreign keys nor check constraints, and its
+        secondary indexes are not unique, so those are reported accordingly.
         """
         constraints = {}
         table_scheme_entry = self.connection.get_describe(table_name)
 
         if table_scheme_entry.primary_key:
+            pk_columns = list(table_scheme_entry.primary_key)
             constraints["primary_key"] = _get_constraint_tuple(
-                columns=table_scheme_entry.primary_key,
+                columns=pk_columns,
                 is_primary_key=True,
                 is_unique=True,
+                orders=["ASC"] * len(pk_columns),
             )
 
         for index in table_scheme_entry.indexes:
-            index_name = index.name
-            columns = index.index_columns
-            constraints[index_name] = _get_constraint_tuple(
+            columns = list(index.index_columns)
+            constraints[index.name] = _get_constraint_tuple(
                 columns=columns,
                 is_primary_key=False,
-                is_unique=None,
+                # YDB secondary indexes do not enforce uniqueness.
+                is_unique=False,
+                orders=["ASC"] * len(columns),
+                _type="global",
             )
 
         return constraints
