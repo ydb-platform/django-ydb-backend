@@ -419,8 +419,8 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
         field_types = []
         for f in fields:
-            yql_type = self.connection.introspection.get_field_type(
-                _get_field_internal_type(f), {}
+            yql_type = self.connection.introspection.get_yql_type(
+                _get_field_internal_type(f)
             )
             if getattr(f, "null", False):
                 yql_type = f"Optional<{yql_type}>"

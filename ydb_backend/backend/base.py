@@ -127,9 +127,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     #     return self.connection._driver
 
     def get_table_names(self):
+        # Introspection may be the first database operation in a request (e.g.
+        # `flush`/`migrate`), so make sure the underlying connection is open
+        # before reaching into it.
+        self.ensure_connection()
         return self.connection.get_table_names()
 
     def get_describe(self, table_name):
+        self.ensure_connection()
         return self.connection.describe(table_name)
 
     @staticmethod
