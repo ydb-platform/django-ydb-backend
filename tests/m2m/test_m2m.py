@@ -68,10 +68,17 @@ class TestAutoCreatedM2M(TransactionTestCase):
             )
 
     def test_through_columns_integer_target(self):
+        # The auto PK type depends on DEFAULT_AUTO_FIELD (AutoField -> Int32,
+        # BigAutoField -> Int64, the Django 6.0 default), so assert the through
+        # column matches the target's actual primary key type.
         through = Article.tags.through
         column = _target_relation_column(through, IntTag)
-        types = _column_types(through._meta.db_table)
-        self.assertEqual(types[column], "Int32")
+        through_types = _column_types(through._meta.db_table)
+        target_pk_type = _column_types(IntTag._meta.db_table)[
+            IntTag._meta.pk.column
+        ]
+        self.assertEqual(through_types[column], target_pk_type)
+        self.assertIn(target_pk_type, ("Int32", "Int64"))
 
     def test_through_columns_string_target(self):
         through = StrBox.items.through
