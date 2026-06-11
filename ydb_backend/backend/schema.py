@@ -325,8 +325,21 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # _remake_table needs it).
         self.deferred_sql.extend(self._model_indexes_sql(model))
 
+        # Auto-created M2M through tables are plain tables carrying two relation
+        # columns; mirror Django's base schema editor and create them too.
+        # Custom (user-defined) through models are created as ordinary models,
+        # so they are skipped here.
+        for field in model._meta.local_many_to_many:
+            if field.remote_field.through._meta.auto_created:
+                self.create_model(field.remote_field.through)
+
     def delete_model(self, model):
         """Delete a model from the database."""
+
+        # Drop the auto-created M2M through tables before the model table.
+        for field in model._meta.local_many_to_many:
+            if field.remote_field.through._meta.auto_created:
+                self.delete_model(field.remote_field.through)
 
         # Delete the table
         self.execute(

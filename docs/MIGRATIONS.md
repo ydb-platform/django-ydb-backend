@@ -56,6 +56,17 @@ application logic.
 
 **Solution:** Data integrity control is assigned to the application logic.
 
+## Relations and many-to-many
+
+Relations are stored as plain scalar columns (`<name>_id`) typed from the
+target's primary key; no `FOREIGN KEY`, `REFERENCES` or `ON DELETE` SQL is
+emitted, and referential integrity is left to the application.
+
+Auto-created many-to-many through tables are created and dropped together with
+their model (just like Django's base schema editor), so `ManyToManyField`
+add/list/remove works at the ORM level. Custom (`through=`) models are created
+as ordinary tables.
+
 ## Indexes
 **Features:**
 - Indexes are created via ADD INDEX ... GLOBAL (as in the code example) or are set when creating table.
