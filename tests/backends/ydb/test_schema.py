@@ -1,3 +1,4 @@
+import django
 from django.db import NotSupportedError
 from django.db import connection
 from django.db import models
@@ -275,7 +276,12 @@ class TestUnsupportedSchemaOperations(TransactionTestCase):
         self._assert_warns("add_constraint", MyModel, constraint)
 
     def test_add_check_constraint_warns(self):
-        constraint = CheckConstraint(check=Q(id__gte=0), name="ck_mymodel_id")
+        # CheckConstraint.check was renamed to .condition in Django 5.1 and
+        # removed in 6.0.
+        if django.VERSION >= (5, 1):
+            constraint = CheckConstraint(condition=Q(id__gte=0), name="ck_mymodel")
+        else:
+            constraint = CheckConstraint(check=Q(id__gte=0), name="ck_mymodel")
         self._assert_warns("add_constraint", MyModel, constraint)
 
     def test_remove_constraint_is_noop(self):
