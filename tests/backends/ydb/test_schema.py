@@ -1,9 +1,13 @@
 from django.db import connection
 from django.db import models
+from django.db.models import CASCADE
+from django.db.models import ForeignKey
 from django.db.models import Index
+from django.db.models import IntegerField
 from django.db.models import TextField
 from django.test import TransactionTestCase
 
+from ..models import DbColumnModel
 from ..models import ModelWithIndexes
 from ..models import MyModel
 from ..models import OldNameModel
@@ -18,6 +22,14 @@ def _get_indexes():
         )
 
     return [key for key, value in constraints.items() if value.get("index") is True]
+
+
+def _get_columns(table_name):
+    with connection.cursor() as cursor:
+        description = connection.introspection.get_table_description(
+            cursor, table_name
+        )
+    return [column.name for column in description]
 
 
 class TestDatabaseSchema(TransactionTestCase):
@@ -116,6 +128,70 @@ class TestDatabaseSchema(TransactionTestCase):
                 len(connection.introspection.get_sequences(
                     cursor, "backends_mymodel"
                 )) > 2)
+
+    def test_create_model_with_db_column(self):
+        columns = _get_columns("backends_dbcolumnmodel")
+        self.assertIn("custom_full_name", columns)
+        self.assertIn("custom_age", columns)
+        # The Django field names must not leak into the database schema.
+        self.assertNotIn("full_name", columns)
+        self.assertNotIn("age", columns)
+
+    def test_query_with_db_column(self):
+        DbColumnModel.objects.create(id=1, full_name="Ivan Petrov", age=30)
+
+        fetched = DbColumnModel.objects.get(full_name="Ivan Petrov")
+        self.assertEqual(fetched.id, 1)
+        self.assertEqual(fetched.full_name, "Ivan Petrov")
+        self.assertEqual(fetched.age, 30)
+
+        # Filtering on the db_column-backed field must reach the right column.
+        self.assertTrue(DbColumnModel.objects.filter(age=30).exists())
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT custom_full_name, custom_age "
+                "FROM `backends_dbcolumnmodel` WHERE id = 1;"
+            )
+            row = cursor.fetchall()
+        self.assertEqual(row[0][0], "Ivan Petrov")
+        self.assertEqual(row[0][1], 30)
+
+    def test_add_field_with_db_column(self):
+        new_field = TextField(null=True, db_column="custom_surname")
+        new_field.set_attributes_from_name("surname")
+
+        with connection.schema_editor() as editor:
+            editor.add_field(MyModel, new_field)
+
+        columns = _get_columns("backends_mymodel")
+        self.assertIn("custom_surname", columns)
+        self.assertNotIn("surname", columns)
+
+    def test_remove_field_with_db_column(self):
+        new_field = IntegerField(null=True, db_column="custom_rank")
+        new_field.set_attributes_from_name("rank")
+
+        with connection.schema_editor() as editor:
+            editor.add_field(MyModel, new_field)
+        self.assertIn("custom_rank", _get_columns("backends_mymodel"))
+
+        with connection.schema_editor() as editor:
+            editor.remove_field(MyModel, new_field)
+        self.assertNotIn("custom_rank", _get_columns("backends_mymodel"))
+
+    def test_add_field_keeps_relation_scalar_column_name(self):
+        fk_field = ForeignKey(SimpleModel, on_delete=CASCADE, null=True)
+        fk_field.set_attributes_from_name("simple")
+
+        with connection.schema_editor() as editor:
+            editor.add_field(MyModel, fk_field)
+
+        columns = _get_columns("backends_mymodel")
+        # Relation columns keep the "_id" scalar suffix (field.column),
+        # not the bare field name.
+        self.assertIn("simple_id", columns)
+        self.assertNotIn("simple", columns)
 
     def test_indexes_exists(self):
         index_true = _get_indexes()

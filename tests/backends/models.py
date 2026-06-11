@@ -76,6 +76,15 @@ class MyModel(models.Model):
         return f"{self.id}: {self.name}"
 
 
+class DbColumnModel(models.Model):
+    id = models.AutoField(primary_key=True)
+    full_name = models.CharField(max_length=100, db_column="custom_full_name")
+    age = models.IntegerField(db_column="custom_age", null=True)
+
+    def __str__(self):
+        return f"{self.id}: {self.full_name}"
+
+
 class ModelWithIndexes(models.Model):
     id = models.IntegerField(primary_key=True)
     single_idx_field = models.CharField(max_length=256, db_index=True)

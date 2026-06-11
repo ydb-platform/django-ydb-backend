@@ -275,7 +275,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Build the SQL and run it
         sql = self.sql_create_column % {
             "table": self.quote_name(model._meta.db_table),
-            "column": self.quote_name(field.name),
+            "column": self.quote_name(field.column),
             "definition": definition,
         }
 

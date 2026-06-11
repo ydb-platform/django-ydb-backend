@@ -97,6 +97,65 @@ class TestGenerateParamsForUpdateDateTimeField(SimpleTestCase):
         self.assertEqual(result["$p2"][0], ts)
 
 
+class TestGenerateParamsForUpdateUnresolvedColumn(SimpleTestCase):
+    """
+    Placeholders whose owning column cannot be resolved (column is None) must be
+    typed from the parameter value and must stay positionally aligned with the
+    remaining placeholders, instead of being dropped.
+    """
+
+    def _field_types(self):
+        return {
+            "quantity": "IntegerField",
+            "id": "AutoField",
+        }
+
+    def test_unresolved_column_is_typed_from_value(self):
+        import ydb
+        result = _generate_params_for_update(
+            placeholder_rows=["$p1"],
+            columns=[None],
+            field_types=self._field_types(),
+            params=(1,),
+        )
+        stored, ydb_type = result["$p1"]
+        self.assertEqual(stored, 1)
+        self.assertEqual(ydb_type, ydb.PrimitiveType.Int64)
+
+    def test_unresolved_column_does_not_shift_following_params(self):
+        # Mirrors QuerySet.exists(): SELECT (%s) ... WHERE quantity = %s
+        # columns[0] is None (the literal Value(1) in the select list) and must
+        # not consume the type that belongs to the WHERE placeholder.
+        import ydb
+        result = _generate_params_for_update(
+            placeholder_rows=["$p1", "$p2"],
+            columns=[None, "quantity"],
+            field_types=self._field_types(),
+            params=(1, 30),
+        )
+        self.assertEqual(result["$p1"], (1, ydb.PrimitiveType.Int64))
+        self.assertEqual(result["$p2"], (30, ydb.PrimitiveType.Int32))
+
+    def test_unknown_column_falls_back_to_value_typing(self):
+        import ydb
+        result = _generate_params_for_update(
+            placeholder_rows=["$p1"],
+            columns=["not_a_field"],
+            field_types=self._field_types(),
+            params=("hello",),
+        )
+        self.assertEqual(result["$p1"], ("hello", ydb.PrimitiveType.Utf8))
+
+    def test_uninferable_value_raises(self):
+        with self.assertRaises(ValueError):
+            _generate_params_for_update(
+                placeholder_rows=["$p1"],
+                columns=[None],
+                field_types=self._field_types(),
+                params=(object(),),
+            )
+
+
 class TestGetDataDateTimeField(SimpleTestCase):
     """Regression tests for _get_data with int timestamps."""
 
