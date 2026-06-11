@@ -16,7 +16,7 @@ logged warning:
   of corrupting the schema.
 - **Skipped with a warning** for operations that YDB cannot honour but that
   leave the table queryable: unique/check constraints, `unique_together`, and
-  nullability changes after table creation. These are logged (logger
+  making a column NOT NULL after creation. These are logged (logger
   `django_ydb_backend.ydb_backend.backend.schema`) and the migration proceeds.
 
 Because unenforceable operations are skipped rather than rejected,
@@ -31,6 +31,7 @@ application logic.
 - Add/remove columns (ADD COLUMN, DROP COLUMN).
 - Rename the TABLE.
 - Add/drop a secondary index for a field (`db_index`).
+- Relax a column from NOT NULL to nullable (ALTER COLUMN ... DROP NOT NULL).
 
 **Raises `NotSupportedError`:**
 - Change the column type (ALTER COLUMN TYPE).
@@ -39,8 +40,8 @@ application logic.
 - Workaround: create a new table with the required schema and copy the data.
 
 **Skipped with a warning:**
-- NULL/NOT NULL change after creating the table (the column keeps its original
-  nullability).
+- Making a column NOT NULL after creation (YDB can only drop NOT NULL, not add
+  it; the column keeps its current nullability).
 - Default value changes are a no-op (defaults are applied by Django, not stored
   in YDB).
 

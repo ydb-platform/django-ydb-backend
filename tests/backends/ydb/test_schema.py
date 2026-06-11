@@ -37,6 +37,14 @@ def _get_columns(table_name):
     return [column.name for column in description]
 
 
+def _column_is_nullable(table_name, column):
+    with connection.cursor() as cursor:
+        description = connection.introspection.get_table_description(
+            cursor, table_name
+        )
+    return next(field.null_ok for field in description if field.name == column)
+
+
 class TestDatabaseSchema(TransactionTestCase):
     databases = {"default"}
 
@@ -252,11 +260,11 @@ _SCHEMA_LOGGER = "django_ydb_backend.ydb_backend.backend.schema"
 
 class TestUnsupportedSchemaOperations(TransactionTestCase):
     """
-    YDB cannot enforce constraints or alter existing columns. Operations that
-    would corrupt the schema (rename/type/PK change) must fail loudly; those
-    that only drop an unenforceable guarantee (constraints, uniqueness,
-    nullability) are skipped with a warning so ``migrate`` of stock Django apps
-    keeps working instead of silently passing (issue #35).
+    Schema alterations YDB cannot perform must not silently pass (issue #35):
+    schema-corrupting changes (rename/type/PK change) fail loudly, while
+    unenforceable ones (constraints, uniqueness, making a column NOT NULL) are
+    skipped with a warning so ``migrate`` of stock Django apps keeps working.
+    Relaxing NOT NULL to nullable is actually applied.
     """
 
     databases = {"default"}
@@ -304,10 +312,19 @@ class TestUnsupportedSchemaOperations(TransactionTestCase):
         new_field = _named_field(IntegerField, "name", primary_key=True)
         self._assert_raises("alter_field", MyModel, old_field, new_field)
 
-    def test_alter_field_nullability_change_warns(self):
-        old_field = _named_field(IntegerField, "name", null=False)
-        new_field = _named_field(IntegerField, "name", null=True)
-        self._assert_warns("alter_field", MyModel, old_field, new_field)
+    def test_alter_field_make_nullable_applies(self):
+        # NOT NULL -> nullable is supported via ALTER COLUMN ... DROP NOT NULL.
+        not_null = _named_field(models.CharField, "name", max_length=100)
+        nullable = _named_field(models.CharField, "name", max_length=100, null=True)
+        with connection.schema_editor() as editor:
+            editor.alter_field(MyModel, not_null, nullable)
+        self.assertTrue(_column_is_nullable("backends_mymodel", "name"))
+
+    def test_alter_field_make_not_null_warns(self):
+        # nullable -> NOT NULL cannot be enforced after creation.
+        nullable = _named_field(IntegerField, "name", null=True)
+        not_null = _named_field(IntegerField, "name", null=False)
+        self._assert_warns("alter_field", MyModel, nullable, not_null)
 
     def test_alter_field_add_unique_warns(self):
         old_field = _named_field(IntegerField, "name")

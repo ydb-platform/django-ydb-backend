@@ -103,6 +103,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_rename_table = "ALTER TABLE %(old_table)s RENAME TO %(new_table)s;"
     sql_create_column = "ALTER TABLE %(table)s ADD COLUMN %(column)s %(definition)s;"
     sql_alter_column = "ALTER TABLE %(table)s %(changes)s;"
+    # YDB can relax NOT NULL to nullable, but cannot add NOT NULL afterwards.
+    sql_alter_column_drop_not_null = (
+        "ALTER TABLE %(table)s ALTER COLUMN %(column)s DROP NOT NULL;"
+    )
     sql_update_with_default = (
         "UPDATE %(table)s SET %(column)s = %(default)s WHERE %(column)s IS NULL;"
     )
@@ -415,12 +419,23 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             raise NotSupportedError(error_message)
 
         if old_field.null != new_field.null:
-            logger.warning(
-                "YDB cannot change the nullability of column %r on %r after "
-                "creation; skipping.",
-                new_field.column,
-                db_table,
-            )
+            if new_field.null:
+                # NOT NULL -> nullable is supported by dropping NOT NULL.
+                self.execute(
+                    self.sql_alter_column_drop_not_null
+                    % {
+                        "table": self.quote_name(db_table),
+                        "column": self.quote_name(new_field.column),
+                    }
+                )
+            else:
+                # nullable -> NOT NULL cannot be enforced after creation.
+                logger.warning(
+                    "YDB cannot make column %r on %r NOT NULL after creation; "
+                    "skipping.",
+                    new_field.column,
+                    db_table,
+                )
         if new_field.unique and not old_field.unique:
             logger.warning(
                 "YDB does not enforce uniqueness for column %r on %r; skipping. "
