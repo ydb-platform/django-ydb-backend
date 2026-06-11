@@ -146,3 +146,36 @@ class TestDateTimeFieldUpdate(TransactionTestCase):
     def test_filter_by_day_does_not_crash(self):
         qs = EventRecord.objects.filter(occurred_at__day=1)
         self.assertEqual(qs.count(), 1)
+
+
+class TestUpdateRowCount(TransactionTestCase):
+    """
+    YDB reports cursor.rowcount == -1, so the update compiler counts affected
+    rows via RETURNING. A faked count breaks Model.save() for a new instance
+    with an explicit primary key: the UPDATE matches nothing, so Django must
+    fall back to INSERT (used by loaddata, data migrations, contrib.sites).
+    """
+
+    databases = {"default"}
+
+    def test_save_with_explicit_pk_inserts_new_row(self):
+        EventRecord(pk=4242, name="explicit").save()
+        self.assertTrue(EventRecord.objects.filter(pk=4242).exists())
+        self.assertEqual(EventRecord.objects.get(pk=4242).name, "explicit")
+
+    def test_save_existing_pk_updates_without_duplicating(self):
+        obj = EventRecord.objects.create(name="orig")
+        EventRecord(pk=obj.pk, name="changed").save()
+        self.assertEqual(EventRecord.objects.filter(pk=obj.pk).count(), 1)
+        self.assertEqual(EventRecord.objects.get(pk=obj.pk).name, "changed")
+
+    def test_update_returns_real_affected_count(self):
+        EventRecord.objects.create(name="a")
+        EventRecord.objects.create(name="a")
+        EventRecord.objects.create(name="b")
+        self.assertEqual(EventRecord.objects.filter(name="a").update(name="z"), 2)
+
+    def test_update_no_match_returns_zero(self):
+        self.assertEqual(
+            EventRecord.objects.filter(name="does-not-exist").update(name="x"), 0
+        )
