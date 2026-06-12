@@ -217,15 +217,13 @@ def _generate_params_for_update(placeholder_rows, internal_types, params):
 
 
 def _get_field_internal_type(field):
-    # Resolve a relation column to the concrete type of its ultimate target
-    # primary key. The target may itself be a relation (e.g. a OneToOneField
-    # primary key under multi-table inheritance), so follow the chain rather
-    # than resolving a single hop.
-    for _ in range(10):
-        if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
-            field = field.target_field
-        else:
-            break
+    # A relation column stores the concrete type of its target's primary key,
+    # and that target may itself be a relation (e.g. a OneToOneField primary
+    # key under multi-table inheritance). Follow the chain to the concrete
+    # field. It always terminates: every relation ultimately resolves to a
+    # non-relation primary key, and model graphs cannot make this cyclic.
+    while getattr(field, "remote_field", None) and hasattr(field, "target_field"):
+        field = field.target_field
     return field.get_internal_type()
 
 
