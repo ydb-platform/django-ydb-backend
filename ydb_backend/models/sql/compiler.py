@@ -1,6 +1,7 @@
-import re
 from datetime import date
 from datetime import datetime
+from datetime import time
+from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from django.core.exceptions import FullResultSet
 from django.db import NotSupportedError
 from django.db import models
 from django.db.models.expressions import RawSQL
+from django.db.models.lookups import Lookup
 from django.db.models.sql import compiler
 from django.db.models.sql.compiler import SQLAggregateCompiler
 from django.db.models.sql.compiler import SQLCompiler
@@ -47,36 +49,59 @@ _ydb_types = {
 }
 
 
-def _extract_column_names(sql_text):
-    column_pattern = re.compile(r"""
-            (?:`[^`]+`\.`[^`]+`(?!\w)
-            |`[^`]+`(?!\w)
-            )(?=(?:\s|[),;]|$))
-        """, re.VERBOSE)
+class _ParamTypingMixin:
+    """
+    Type query parameters from Django's expression tree instead of by
+    regex-scanning the generated SQL.
 
-    columns = []
-    for m in column_pattern.finditer(sql_text):
-        col_name = m.group()
+    ``compile`` is overridden to record, for every emitted ``%s`` parameter, the
+    Django internal field type it belongs to (or ``None`` when it cannot be
+    determined). A lookup's value parameters are typed from the left-hand
+    side's ``output_field``; nested expressions and subqueries are typed by
+    their own compilation. Anything that cannot be resolved falls back to
+    value-based inference downstream.
+    """
 
-        if "." in col_name:
-            col_name = col_name.split(".")[-1]
-        col_name = col_name.strip("`")
+    # Active capture buffer (a list parallel to the params produced) or None.
+    _captured_types = None
 
-        columns.append((m.start(), col_name))
+    def compile(self, node):
+        captured = self._captured_types
+        base = len(captured) if captured is not None else 0
+        sql, params = super().compile(node)
+        if captured is not None and params:
+            # Parameters not produced by a nested compile() are emitted directly
+            # by this node (e.g. a lookup's right-hand value), so type them here.
+            direct = len(params) - (len(captured) - base)
+            if direct > 0:
+                captured.extend([self._direct_internal_type(node)] * direct)
+        return sql, params
 
-    placeholders = [m.start() for m in re.finditer(r"%s", sql_text)]
+    @staticmethod
+    def _direct_internal_type(node):
+        field = None
+        try:
+            field = node.lhs.output_field if isinstance(node, Lookup) else (
+                node.output_field
+            )
+        except (FieldError, AttributeError):
+            field = None
+        if field is None:
+            return None
+        try:
+            return _get_field_internal_type(field)
+        except (FieldError, AttributeError):
+            return None
 
-    result = []
-    for ph_pos in placeholders:
-        last_column = None
-        for col_pos, col_name in columns:
-            if col_pos < ph_pos:
-                last_column = col_name
-            else:
-                break
-        result.append(last_column)
-
-    return result
+    def _compile_capturing(self, node):
+        """Compile ``node`` and also return the per-parameter internal types."""
+        previous = self._captured_types
+        self._captured_types = []
+        try:
+            sql, params = self.compile(node)
+            return sql, params, list(self._captured_types)
+        finally:
+            self._captured_types = previous
 
 
 def _replace_placeholders(sql):
@@ -113,62 +138,70 @@ def _infer_ydb_type(value):
     raise ValueError(msg)
 
 
-def _generate_params_for_update(placeholder_rows, columns, field_types, params):
-    modified_params = {}
+_TEMPORAL_VALUE_TYPES = (datetime, date, time, timedelta)
+_TEMPORAL_FIELD_TYPES = frozenset(
+    {"DateTimeField", "DateField", "DurationField", "TimeField"}
+)
 
-    for i, placeholder in enumerate(placeholder_rows):
-        column = columns[i] if i < len(columns) else None
-        field_type = field_types.get(column) if column is not None else None
-        val = params[i]
 
-        if field_type is None:
-            # Column unknown (e.g. Value() annotation in SELECT) — infer from value.
-            # datetime/date need the same timestamp conversion as DateTimeField.
-            if isinstance(val, datetime):
-                modified_params[placeholder] = (
-                    int(val.timestamp()), ydb.PrimitiveType.Datetime
-                )
-            elif isinstance(val, date):
-                modified_params[placeholder] = (val, ydb.PrimitiveType.Date)
-            else:
-                modified_params[placeholder] = (val, _infer_ydb_type(val))
-        elif field_type == "DateTimeField":
-            if isinstance(val, int):
-                # val is an extract comparison (e.g. __month=1, __day=15) produced
-                # by DateTime::GetMonth / DateTime::GetDay / etc.  The column name
-                # heuristic in _extract_column_names points to the DateTimeField, but
-                # the placeholder holds an integer operand, not a timestamp.
-                modified_params[placeholder] = (val, ydb.PrimitiveType.Int32)
-            else:
-                modified_params[placeholder] = (
-                    int(val.timestamp()),
-                    _ydb_types[field_type],
-                )
+class _TypedParam:
+    """
+    A query parameter that already carries its YDB type. Subquery compilers
+    return these so that parameters compose when a query is embedded in an
+    enclosing query (the outermost query assigns the final placeholder names).
+    """
+
+    __slots__ = ("value", "ydb_type")
+
+    def __init__(self, value, ydb_type):
+        self.value = value
+        self.ydb_type = ydb_type
+
+
+def _resolve_one(field_type, val):
+    # A non-temporal field type with a temporal value is a contradiction
+    # (e.g. __year=N compares datetime bounds but its lookup's output_field is
+    # IntegerField); trust the value in that case.
+    if (
+        field_type is not None
+        and field_type not in _TEMPORAL_FIELD_TYPES
+        and isinstance(val, _TEMPORAL_VALUE_TYPES)
+    ):
+        field_type = None
+
+    if field_type == "DateTimeField":
+        if isinstance(val, int):
+            # An extract comparison (e.g. __month=1) whose left-hand side is a
+            # DateTimeField but whose operand is an integer, not a timestamp.
+            return (val, ydb.PrimitiveType.Int32)
+        return (int(val.timestamp()), _ydb_types[field_type])
+    if field_type in _ydb_types:
+        return (val, _ydb_types[field_type])
+    if isinstance(val, datetime):
+        return (int(val.timestamp()), ydb.PrimitiveType.Datetime)
+    if isinstance(val, date):
+        return (val, ydb.PrimitiveType.Date)
+    return (val, _infer_ydb_type(val))
+
+
+def _resolve_typed_params(internal_types, params):
+    # ``internal_types`` is aligned 1:1 with ``params``: the Django field
+    # internal type for each parameter, or None when it could not be resolved
+    # from the expression tree. Returns a list of (value, ydb_type). Parameters
+    # produced by a subquery already carry their type and pass through.
+    resolved = []
+    for i, val in enumerate(params):
+        if isinstance(val, _TypedParam):
+            resolved.append((val.value, val.ydb_type))
         else:
-            modified_params[placeholder] = (val, _ydb_types[field_type])
+            field_type = internal_types[i] if i < len(internal_types) else None
+            resolved.append(_resolve_one(field_type, val))
+    return resolved
 
-    return modified_params
 
-
-def _get_field_types(model):
-    field_types = {}
-
-    for field in model._meta.get_fields():
-        if not hasattr(field, "name"):
-            continue
-
-        if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
-            field_type = field.target_field.get_internal_type()
-        else:
-            field_type = field.get_internal_type()
-
-        field_types[field.name] = field_type
-        if hasattr(field, "attname"):
-            field_types[field.attname] = field_type
-        if hasattr(field, "column"):
-            field_types[field.column] = field_type
-
-    return field_types
+def _generate_params_for_update(placeholder_rows, internal_types, params):
+    resolved = _resolve_typed_params(internal_types, params)
+    return {ph: resolved[i] for i, ph in enumerate(placeholder_rows)}
 
 
 def _get_field_internal_type(field):
@@ -206,7 +239,7 @@ def _get_data_type(fields):
     return ydb.ListType(struct_type)
 
 
-class SQLCompiler(SQLCompiler):
+class SQLCompiler(_ParamTypingMixin, SQLCompiler):
     def get_order_by(self):
         result = super().get_order_by()
         # YDB rejects "ORDER BY N" (ordinal position reference, a Django 5.x
@@ -239,7 +272,8 @@ class SQLCompiler(SQLCompiler):
         """
 
         refcounts_before = self.query.alias_refcount.copy()
-        columns = []
+        # Per-parameter Django internal field types, kept aligned with ``params``.
+        param_types = []
         try:
             combinator = self.query.combinator
             extra_select, order_by, group_by = self.pre_sql_setup(
@@ -256,33 +290,37 @@ class SQLCompiler(SQLCompiler):
                 result, params = self.get_combinator_sql(
                     combinator, self.query.combinator_all
                 )
+                param_types = [None] * len(params)
             elif self.qualify:
                 result, params = self.get_qualify_sql()
                 order_by = None
+                param_types = [None] * len(params)
             else:
                 distinct_fields, distinct_params = self.get_distinct()
                 # This must come after 'select', 'ordering', and 'distinct'
                 # (see docstring of get_from_clause() for details).
                 from_, f_params = self.get_from_clause()
                 try:
-                    where, w_params = (
-                        self.compile(self.where) if self.where is not None else ("", [])
-                    )
+                    if self.where is not None:
+                        where, w_params, w_types = self._compile_capturing(self.where)
+                    else:
+                        where, w_params, w_types = "", [], []
                 except EmptyResultSet:
                     if self.elide_empty:
                         raise
                     # Use a predicate that's always False.
-                    where, w_params = "0 = 1", []
+                    where, w_params, w_types = "0 = 1", [], []
                 except FullResultSet:
-                    where, w_params = "", []
+                    where, w_params, w_types = "", [], []
                 try:
-                    having, h_params = (
-                        self.compile(self.having)
-                        if self.having is not None
-                        else ("", [])
-                    )
+                    if self.having is not None:
+                        having, h_params, h_types = self._compile_capturing(
+                            self.having
+                        )
+                    else:
+                        having, h_params, h_types = "", [], []
                 except FullResultSet:
-                    having, h_params = "", []
+                    having, h_params, h_types = "", [], []
                 result = ["SELECT"]
                 params = []
 
@@ -293,13 +331,14 @@ class SQLCompiler(SQLCompiler):
                     )
                     result += distinct_result
                     params += distinct_params
+                    param_types += [None] * len(distinct_params)
 
                 out_cols = []
                 for _, (s_sql, s_params), alias in self.select + extra_select:
-                    columns = columns + _extract_column_names(s_sql)
                     if alias:
                         s_sql = f"{s_sql} AS {self.connection.ops.quote_name(alias)}"  # noqa: PLW2901
                     params.extend(s_params)
+                    param_types += [None] * len(s_params)
                     out_cols.append(s_sql)
 
                 result += [", ".join(out_cols)]
@@ -309,17 +348,18 @@ class SQLCompiler(SQLCompiler):
                 elif self.connection.features.bare_select_suffix:
                     result += [self.connection.features.bare_select_suffix]
                 params.extend(f_params)
+                param_types += [None] * len(f_params)
 
                 if where:
                     result.append(f"WHERE {where}")
                     params.extend(w_params)
-                    if len(where) > 0:
-                        columns = columns + _extract_column_names(where)
+                    param_types += w_types
 
                 grouping = []
                 for g_sql, g_params in group_by:
                     grouping.append(g_sql)
                     params.extend(g_params)
+                    param_types += [None] * len(g_params)
                 if grouping:
                     if distinct_fields:
                         raise NotImplementedError(
@@ -334,8 +374,7 @@ class SQLCompiler(SQLCompiler):
                         result.extend(self.connection.ops.force_group_by())
                     result.append(f"HAVING {having}")
                     params.extend(h_params)
-                    if len(having) > 0:
-                        columns = columns + _extract_column_names(having)
+                    param_types += h_types
 
             if self.query.explain_info:
                 result.insert(
@@ -351,6 +390,7 @@ class SQLCompiler(SQLCompiler):
                 for _, (o_sql, o_params, _) in order_by:
                     ordering.append(o_sql)
                     params.extend(o_params)
+                    param_types += [None] * len(o_params)
                 order_by_sql = f"ORDER BY {', '.join(ordering)}"
                 if combinator and features.requires_compound_order_by_subquery:
                     result = ["SELECT * FROM (", *result, ")", order_by_sql]
@@ -388,22 +428,26 @@ class SQLCompiler(SQLCompiler):
                         )
                         sub_selects.append(subselect)
                         sub_params.extend(subparams)
-                sql, params = (
+                sql = (
                     f"SELECT {', '.join(sub_selects)} "
-                    f"FROM ({' '.join(result)}) subquery",
-                    tuple(sub_params + params),
+                    f"FROM ({' '.join(result)}) subquery"
                 )
+                composed = _resolve_typed_params(
+                    [], sub_params
+                ) + _resolve_typed_params(param_types, params)
+                return sql, [_TypedParam(v, t) for v, t in composed]
 
-                return sql, params
+            sql = " ".join(result)
+            resolved = _resolve_typed_params(param_types, params)
+            if self.query.subquery:
+                # Compose into the enclosing query: keep %s placeholders and
+                # carry types; the outermost query names the placeholders.
+                return sql, [_TypedParam(v, t) for v, t in resolved]
 
-            sql, params = " ".join(result), tuple(params)
             sql, placeholder_rows = _replace_placeholders(sql)
-
-            field_types = _get_field_types(self.query.model)
-
-            modified_params = _generate_params_for_update(
-                placeholder_rows, columns, field_types, params
-            )
+            modified_params = {
+                ph: resolved[i] for i, ph in enumerate(placeholder_rows)
+            }
 
             return sql, modified_params
         finally:
@@ -528,27 +572,35 @@ class SQLUpsertCompiler(BaseSQLWriteCompiler):
         )
 
 
-class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
+class SQLDeleteCompiler(_ParamTypingMixin, compiler.SQLDeleteCompiler):
     def _as_sql(self, query):
-        columns = []
         delete = f"DELETE FROM {self.quote_name_unless_alias(query.base_table)}"
+        # RETURNING lets execute_sql count the deleted rows (YDB reports
+        # cursor.rowcount == -1 for DELETE).
+        returning = (
+            f" RETURNING {self.quote_name_unless_alias(query.model._meta.pk.column)}"
+        )
 
         try:
-            where, params = self.compile(query.where)
-            if len(where) > 0:
-                columns = columns + _extract_column_names(where)
+            where, params, param_types = self._compile_capturing(query.where)
         except FullResultSet:
-            return delete, ()
-        sql, params = f"{delete} WHERE {where}", tuple(params)
+            return delete + returning, ()
+        sql, params = f"{delete} WHERE {where}{returning}", tuple(params)
         sql, placeholder_rows = _replace_placeholders(sql)
 
-        field_types = _get_field_types(self.query.model)
-
         modified_params = _generate_params_for_update(
-            placeholder_rows, columns, field_types, params
+            placeholder_rows, param_types, params
         )
 
         return sql, modified_params
+
+    def execute_sql(self, result_type=compiler.MULTI, *args, **kwargs):
+        cursor = super().execute_sql(result_type, *args, **kwargs)
+        # Count the RETURNING rows so QuerySet.delete() reports a real number.
+        if cursor is not None and getattr(cursor, "rowcount", 0) == -1:
+            rows = cursor.fetchall() if cursor.description else []
+            cursor.rowcount = len(rows)
+        return cursor
 
     def as_sql(self):
         """
@@ -575,7 +627,7 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler):
         return self._as_sql(outerq)
 
 
-class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
+class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
     def as_sql(self):
         """
         Create the SQL for this query. Return the SQL string and list of
@@ -585,7 +637,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         if not self.query.values:
             return "", ()
         qn = self.quote_name_unless_alias
-        values, update_params = [], []
+        values, update_params, set_types = [], [], []
         for field, _model, val in self.query.values:
             if hasattr(val, "resolve_expression"):
                 val = val.resolve_expression(  # noqa: PLW2901
@@ -622,12 +674,14 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
                 placeholder = "%s"
             name = field.column
             if hasattr(val, "as_sql"):
-                sql, params = self.compile(val)
-                values.append(f"{qn(name)} = {placeholder % sql}")
-                update_params.extend(params)
+                sub_sql, sub_params, sub_types = self._compile_capturing(val)
+                values.append(f"{qn(name)} = {placeholder % sub_sql}")
+                update_params.extend(sub_params)
+                set_types += sub_types
             elif val is not None:
                 values.append(f"{qn(name)} = {placeholder}")
                 update_params.append(val)
+                set_types.append(_get_field_internal_type(field))
             else:
                 values.append(f"{qn(name)} = NULL")
         table = self.query.base_table
@@ -637,17 +691,12 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
             ", ".join(values),
         ]
 
-        columns = []
-
-        for item in values:
-            columns.extend(_extract_column_names(item))
-
         try:
-            where, params = self.compile(self.query.where)
-            if len(where) > 0:
-                columns = columns + _extract_column_names(where)
+            where, where_params, where_types = self._compile_capturing(
+                self.query.where
+            )
         except FullResultSet:
-            params = []
+            where_params, where_types = [], []
         else:
             result.append(f"WHERE {where}")
 
@@ -657,13 +706,12 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         # Model.save() relies on to decide between UPDATE and INSERT.
         result.append(f"RETURNING {qn(self.query.model._meta.pk.column)}")
 
-        sql, params = " ".join(result), tuple(update_params + params)
+        sql, params = " ".join(result), tuple(update_params + where_params)
+        param_types = set_types + where_types
         sql, placeholder_rows = _replace_placeholders(sql)
 
-        field_types = _get_field_types(self.query.model)
-
         modified_params = _generate_params_for_update(
-            placeholder_rows, columns, field_types, params
+            placeholder_rows, param_types, params
         )
         return sql, modified_params
 
