@@ -651,6 +651,12 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         else:
             result.append(f"WHERE {where}")
 
+        # YDB does not report an affected-row count (cursor.rowcount is always
+        # -1), but it does support RETURNING. Emit the primary key so the real
+        # number of updated rows can be counted in execute_sql; this is what
+        # Model.save() relies on to decide between UPDATE and INSERT.
+        result.append(f"RETURNING {qn(self.query.model._meta.pk.column)}")
+
         sql, params = " ".join(result), tuple(update_params + params)
         sql, placeholder_rows = _replace_placeholders(sql)
 
@@ -661,21 +667,20 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         )
         return sql, modified_params
 
-    # TODO: fix this method
     def execute_sql(self, returning_fields=None):
         """
         Execute the specified update. Return the number of rows affected by
-        the primary update query. The "primary update query" is the first
-        non-empty query that is executed. Row counts for any subsequent,
-        related queries are not available.
+        the primary update query, counted from the RETURNING result set so the
+        ORM can correctly tell an updated row from a missing one.
         """
         self.returning_fields = returning_fields
         with self.connection.cursor() as cursor:
             sql, params = self.as_sql()
+            if not sql:
+                return 0
             cursor.execute(sql, params)
-            if hasattr(cursor, "rowcount") and cursor.rowcount == -1:
-                cursor.rowcount = 1
-            return cursor.rowcount
+            rows = cursor.fetchall() if cursor.description else []
+            return len(rows)
 
 
 class SQLAggregateCompiler(SQLAggregateCompiler):

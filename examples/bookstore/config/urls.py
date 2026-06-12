@@ -1,30 +1,30 @@
+"""URL configuration for the bookstore example.
+
+Routes:
+- /admin/        Django admin (django.contrib.admin)
+- /api/          DRF browsable API + ViewSets registered on a DefaultRouter
+- /api/token/    obtain a DRF auth token (POST username/password)
+- /api-auth/     session login/logout for the browsable API
 """
-URL configuration for simplecrud project.
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+
+from django.contrib import admin
+from django.urls import include
 from django.urls import path
-from bookstore import views
-from bookstore.views import BookDetailAPIView, BookCreateAPIView, BookListCreateAPIView
+from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.routers import DefaultRouter
+
+from bookstore.views import AuthorViewSet
+from bookstore.views import BookViewSet
+from bookstore.views import CategoryViewSet
+
+router = DefaultRouter()
+router.register("authors", AuthorViewSet)
+router.register("categories", CategoryViewSet)
+router.register("books", BookViewSet)
 
 urlpatterns = [
-    path("", views.item_list, name="item_list"),
-    path("create/", views.item_create, name="item_create"),
-    path("update/<int:pk>/", views.item_update, name="item_update"),
-    path("delete/<int:pk>/", views.item_delete, name="item_delete"),
-
-    # API endpoints
-    path("api/books/", BookListCreateAPIView.as_view(), name="api_book_list_create"),
-    path("api/books/create/", BookCreateAPIView.as_view(), name="api_book_create"),
-    path("api/books/<int:pk>/", BookDetailAPIView.as_view(), name="api_book_detail"),
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),
+    path("api/token/", obtain_auth_token, name="api_token"),
+    path("api-auth/", include("rest_framework.urls")),
 ]
