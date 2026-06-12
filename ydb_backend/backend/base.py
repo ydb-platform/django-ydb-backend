@@ -244,7 +244,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def _set_autocommit(self, autocommit):
         """
-        Backend-specific implementation to enable or disable autocommit.
+        Enable or disable autocommit.
+
+        Disabling autocommit (entering ``transaction.atomic()``) opens an
+        interactive YDB transaction; Django then drives ``commit()`` /
+        ``rollback()`` on exit. Re-enabling it returns to per-statement
+        autocommit. YDB has no savepoints, so nested atomic blocks are not
+        isolated (see ``uses_savepoints = False``).
         """
         conn = self.connection
         if autocommit:
