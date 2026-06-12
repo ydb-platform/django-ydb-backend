@@ -267,6 +267,38 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "lookup.tests.LookupTests.test_in_keeps_value_ordering",
             "lookup.tests.LookupTests.test_lookup_collision",
         },
+        # --- queries module (issue #72). Plain union() now works; these are
+        #     the remaining combinator sub-features. ---
+        "ORDER BY / values_list ordering on a UNION result is not yet handled "
+        "correctly.": {
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_ordering_by_alias",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_ordering_by_f_expression_and_alias",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_order_raises_on_non_selected_column",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_and_order",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_and_order_on_annotation",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_on_annotated_and_unannotated",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_multiple_models_with_values_list_and_order",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_multiple_models_with_values_list_and_order_by_extra_select",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_two_annotated_values_list",
+        },
+        "A UNION used as a subquery / with OuterRef, or wrapped for COUNT, "
+        "still generates invalid SQL.": {
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_in_subquery",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_in_subquery_related_outerref",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_count_union",
+        },
     }
 
     supports_transactions = True

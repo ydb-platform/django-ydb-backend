@@ -9,6 +9,7 @@ import ydb
 from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
 from django.core.exceptions import FullResultSet
+from django.db import DatabaseError
 from django.db import NotSupportedError
 from django.db import models
 from django.db.models.expressions import RawSQL
@@ -464,6 +465,81 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
         finally:
             # Finally do cleanup - get rid of the joins we created above.
             self.query.reset_refcounts(refcounts_before)
+
+    def get_combinator_sql(self, combinator, all_):
+        """
+        Compose a compound (UNION/...) query under this backend's named
+        parameter model.
+
+        Django's base implementation concatenates each part's positional
+        parameters. This backend's top-level ``as_sql`` instead returns
+        ``$element_N``-named SQL with a params dict, so concatenating parts
+        collides their placeholder names (``Unknown name: $element_2``).
+        Compiling each part in subquery mode makes it yield ``%s`` placeholders
+        with a positional ``_TypedParam`` list, letting the enclosing query name
+        every placeholder once across the whole statement.
+        """
+        features = self.connection.features
+        compilers = [
+            query.get_compiler(self.using, self.connection, self.elide_empty)
+            for query in self.query.combined_queries
+        ]
+        if not features.supports_slicing_ordering_in_compound:
+            for sub_compiler in compilers:
+                if sub_compiler.query.is_sliced:
+                    msg = (
+                        "LIMIT/OFFSET not allowed in subqueries of compound "
+                        "statements."
+                    )
+                    raise DatabaseError(msg)
+                if sub_compiler.get_order_by():
+                    msg = "ORDER BY not allowed in subqueries of compound statements."
+                    raise DatabaseError(msg)
+        parts = []
+        for sub_compiler in compilers:
+            try:
+                # Combined queries must share the outer query's column list.
+                if (
+                    not sub_compiler.query.values_select
+                    and self.query.values_select
+                ):
+                    sub_compiler.query = sub_compiler.query.clone()
+                    sub_compiler.query.set_values(
+                        (
+                            *self.query.extra_select,
+                            *self.query.values_select,
+                            *self.query.annotation_select,
+                        )
+                    )
+                # Force the subquery parameter model: %s placeholders plus a
+                # positional list of _TypedParam values, restoring the flag so
+                # the part is not otherwise affected.
+                was_subquery = sub_compiler.query.subquery
+                sub_compiler.query.subquery = True
+                try:
+                    part_sql, part_params = sub_compiler.as_sql(with_col_aliases=True)
+                finally:
+                    sub_compiler.query.subquery = was_subquery
+                if sub_compiler.query.combinator:
+                    part_sql = f"SELECT * FROM ({part_sql})"
+                parts.append((part_sql, part_params))
+            except EmptyResultSet:  # noqa: PERF203
+                # Omit an empty queryset with UNION (and DIFFERENCE if the
+                # first queryset is non-empty).
+                if combinator == "union" or (combinator == "difference" and parts):
+                    continue
+                raise
+        if not parts:
+            raise EmptyResultSet
+        combinator_sql = self.connection.ops.set_operators[combinator]
+        if all_ and combinator == "union":
+            combinator_sql += " ALL"
+        sql_parts, params_parts = zip(*parts)
+        result = [f" {combinator_sql} ".join(sql_parts)]
+        params = []
+        for part in params_parts:
+            params.extend(part)
+        return result, params
 
 
 class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
