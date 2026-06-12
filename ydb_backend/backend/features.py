@@ -299,6 +299,25 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "queries.test_qs_combinators.QuerySetSetOperationTests."
             "test_count_union",
         },
+        "bulk_update() works but issues a different number of queries on YDB "
+        "(extra INSERT ... RETURNING round-trips), failing assertNumQueries.": {
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_simple",
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_multiple_fields",
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_batch_size",
+            "queries.test_bulk_update.BulkUpdateNoteTests."
+            "test_foreign_keys_do_not_lookup",
+        },
+        "bulk_update() with database functions, JSONField, or multi-table "
+        "inheritance is not fully supported.": {
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_functions",
+            "queries.test_bulk_update.BulkUpdateTests.test_json_field",
+            "queries.test_bulk_update.BulkUpdateTests.test_inherited_fields",
+        },
+        "Requires multiple configured databases (database routing).": {
+            "queries.test_bulk_update.BulkUpdateTests.test_database_routing",
+            "queries.test_bulk_update.BulkUpdateTests."
+            "test_database_routing_batch_atomicity",
+        },
     }
 
     supports_transactions = True

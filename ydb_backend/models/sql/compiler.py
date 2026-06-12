@@ -217,8 +217,15 @@ def _generate_params_for_update(placeholder_rows, internal_types, params):
 
 
 def _get_field_internal_type(field):
-    if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
-        return field.target_field.get_internal_type()
+    # Resolve a relation column to the concrete type of its ultimate target
+    # primary key. The target may itself be a relation (e.g. a OneToOneField
+    # primary key under multi-table inheritance), so follow the chain rather
+    # than resolving a single hop.
+    for _ in range(10):
+        if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
+            field = field.target_field
+        else:
+            break
     return field.get_internal_type()
 
 
@@ -766,7 +773,15 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             name = field.column
             if hasattr(val, "as_sql"):
                 sub_sql, sub_params, sub_types = self._compile_capturing(val)
-                values.append(f"{qn(name)} = {placeholder % sub_sql}")
+                assigned = placeholder % sub_sql
+                # YDB statically types an expression without a guaranteed value
+                # (e.g. bulk_update's CASE ... END with no ELSE) as Optional and
+                # refuses to assign it to a NOT NULL column. The WHERE clause
+                # already restricts the affected rows, so fall back to the
+                # column's current value to keep the assignment non-optional.
+                if not field.null:
+                    assigned = f"COALESCE({assigned}, {qn(name)})"
+                values.append(f"{qn(name)} = {assigned}")
                 update_params.extend(sub_params)
                 set_types += sub_types
             elif val is not None:
