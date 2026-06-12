@@ -50,6 +50,7 @@ Documentation
    FIELDS
    MIGRATIONS
    OPERATIONS
+   TRANSACTIONS
 
 
 Indices and tables
