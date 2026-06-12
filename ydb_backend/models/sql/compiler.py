@@ -581,21 +581,31 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
     def _prepare_params(self):
         opts = self.query.get_meta()
-        fields = self.query.fields or [opts.pk]
 
-        if self.query.fields:
-            value_rows = [
-                [
-                    self.prepare_value(field, self.pre_save_val(field, obj))
-                    for field in fields
-                ]
-                for obj in self.query.objs
+        if not self.query.fields:
+            # No column values to insert: the table's only column is an
+            # auto-increment (Serial) primary key. YDB has no
+            # ``INSERT ... DEFAULT VALUES`` and rejects NULL for a Serial
+            # column, so such a row cannot be inserted and the database must
+            # generate the key. This is reached by multi-table inheritance
+            # parents and by models that define only a primary key.
+            error_message = (
+                "YDB cannot insert a row with no column values "
+                f"({opts.label}): a table whose only column is an "
+                "auto-increment primary key has no INSERT ... DEFAULT VALUES "
+                "support. Multi-table inheritance and primary-key-only models "
+                "are affected."
+            )
+            raise NotSupportedError(error_message)
+
+        fields = self.query.fields
+        value_rows = [
+            [
+                self.prepare_value(field, self.pre_save_val(field, obj))
+                for field in fields
             ]
-        else:
-            value_rows = [
-                [self.connection.ops.pk_default_value()] for _ in self.query.objs
-            ]
-            fields = [None]
+            for obj in self.query.objs
+        ]
 
         _, param_rows = self.assemble_as_sql(fields, value_rows)
         return {
