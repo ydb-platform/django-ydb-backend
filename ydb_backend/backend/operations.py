@@ -13,6 +13,11 @@ DATE_PARAMS_EXTRACT = [
     "day_of_month",
     "day_of_week",
     "day_of_week_name",
+    # Django's standard Extract lookup names.
+    "week_day",
+    "iso_week_day",
+    "week",
+    "quarter",
 ]
 
 DATE_PARAMS_TRUNC = [
@@ -44,6 +49,17 @@ def _common_dt_dttm_extract_funcs(lookup_type, sql, params):
         return f"DateTime::GetDayOfWeek({sql})", params
     if lookup_type == "day_of_week_name":
         return f"DateTime::GetDayOfWeekName({sql})", params
+    # Django's ``__week_day`` numbers days 1=Sunday..7=Saturday, while YDB's
+    # GetDayOfWeek is 1=Monday..7=Sunday; convert between the two conventions.
+    if lookup_type == "week_day":
+        return f"((DateTime::GetDayOfWeek({sql}) % 7) + 1)", params
+    # Django's ``__iso_week_day`` is 1=Monday..7=Sunday, matching GetDayOfWeek.
+    if lookup_type == "iso_week_day":
+        return f"DateTime::GetDayOfWeek({sql})", params
+    if lookup_type == "week":
+        return f"DateTime::GetWeekOfYearIso8601({sql})", params
+    if lookup_type == "quarter":
+        return f"((DateTime::GetMonth({sql}) - 1) / 3 + 1)", params
     msg = f"Unsupported lookup type: {lookup_type}"
     raise ValueError(msg)
 
@@ -89,7 +105,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         "BooleanField": "CAST(%(expression)s AS Bool)",
         "CharField": "CAST(%(expression)s AS Utf8)",
         "DateField": "CAST(%(expression)s AS Date)",
-        "DateTimeField": "CAST(%(expression)s AS Datetime)",
+        "DateTimeField": "CAST(%(expression)s AS Timestamp)",
         "DecimalField": "CAST(%(expression)s AS "
         "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",

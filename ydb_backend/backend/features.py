@@ -201,7 +201,72 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     django_test_expected_failures = set()
 
     # A map of reasons to sets of dotted paths to tests in Django's test suite
-    # that should be skipped for this database.
-    django_test_skips = {}
+    # that should be skipped for this database. Populated while triaging the
+    # bundled Django suite via the conformance harness (issue #72); entries are
+    # inert for this project's own test suite because the guarded test apps are
+    # not in its INSTALLED_APPS.
+    django_test_skips = {
+        "Naive datetimes are converted through the server/Django timezone "
+        "under USE_TZ=False, so values shift instead of round-tripping. "
+        "Microsecond precision is preserved; the timezone handling is the gap.": {
+            "basic.tests.ModelInstanceCreationTests."
+            "test_for_datetimefields_saves_as_much_precision_as_was_given",
+            "basic.tests.ModelTest.test_microsecond_precision",
+            "basic.tests.ModelRefreshTests.test_refresh",
+            "basic.tests.ModelRefreshTests.test_refresh_unsaved",
+        },
+        "Saving a model whose primary key has a database default issues a "
+        "different number of queries on YDB (INSERT ... RETURNING).": {
+            "basic.tests.ModelInstanceCreationTests."
+            "test_save_parent_primary_with_default",
+        },
+        "select-on-save with an update that matches no rows raises instead of "
+        "falling back to INSERT.": {
+            "basic.tests.SelectOnSaveTests.test_select_on_save_lying_update",
+        },
+        # --- lookup module (issue #72), grouped by observed failure mode. ---
+        "TimeField is not supported: YDB has no native time type.": {
+            "lookup.test_timefield.TimeFieldLookupTests.test_hour_lookups",
+            "lookup.test_timefield.TimeFieldLookupTests.test_minute_lookups",
+            "lookup.test_timefield.TimeFieldLookupTests.test_second_lookups",
+        },
+        "A subquery used as the left-hand side of a lookup (Exists/OuterRef/"
+        "subquery LHS) resolves to an unknown YQL member; correlated subqueries "
+        "are unsupported.": {
+            "lookup.tests.LookupQueryingTests.test_filter_exists_lhs",
+            "lookup.tests.LookupQueryingTests.test_filter_subquery_lhs",
+            "lookup.tests.LookupTests.test_exact_exists",
+            "lookup.tests.LookupTests.test_nested_outerref_lhs",
+        },
+        "String escaping for backslashes/special characters in pattern and "
+        "exact lookups is incorrect (YQL token recognition error / wrong rows).": {
+            "lookup.tests.LookupTests.test_escaping",
+            "lookup.tests.LookupTests.test_pattern_lookups_with_substr",
+        },
+        "Lookups that coerce a value to a different field type (int-as-str, "
+        "date-as-str) or apply regex to non-string/NULL operands raise during "
+        "parameter handling.": {
+            "lookup.tests.LookupTests.test_lookup_int_as_str",
+            "lookup.tests.LookupTests.test_lookup_date_as_str",
+            "lookup.tests.LookupTests.test_regex_non_string",
+            "lookup.tests.LookupTests.test_regex_null",
+        },
+        "YDB GROUP BY validation rejects the SQL Django emits for these "
+        "aggregate/decimal lookup queries.": {
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_gt",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_gte",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_lt",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_lte",
+            "lookup.tests.LookupQueryingTests.test_aggregate_combined_lookup",
+        },
+        "exclude()/values()/none()/__in projections return incorrect results "
+        "or raise in the compiler.": {
+            "lookup.tests.LookupTests.test_exclude",
+            "lookup.tests.LookupTests.test_values",
+            "lookup.tests.LookupTests.test_none",
+            "lookup.tests.LookupTests.test_in_keeps_value_ordering",
+            "lookup.tests.LookupTests.test_lookup_collision",
+        },
+    }
 
     supports_transactions = True
