@@ -28,12 +28,18 @@ application logic.
 ## Limited ALTER TABLE
 
 **Supported:**
-- Add/remove columns (ADD COLUMN, DROP COLUMN).
+- Add a nullable column (ADD COLUMN).
+- Add a NOT NULL column **that has a default** — the default is materialised
+  into the DDL (`ADD COLUMN ... NOT NULL DEFAULT <value>`) so YDB can backfill
+  existing rows.
+- Remove a column (DROP COLUMN).
 - Rename the TABLE.
 - Add/drop a secondary index for a field (`db_index`).
 - Relax a column from NOT NULL to nullable (ALTER COLUMN ... DROP NOT NULL).
 
 **Raises `NotSupportedError`:**
+- Add a NOT NULL column **without a default** — YDB cannot backfill existing
+  rows. Add it as nullable, or give the field a default.
 - Change the column type (ALTER COLUMN TYPE).
 - Rename a column.
 - Change the primary key.

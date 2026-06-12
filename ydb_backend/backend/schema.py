@@ -77,6 +77,28 @@ def _quote_value(item):
     raise ValueError("Unsupported type for quoting: " + str(type(item)))
 
 
+def _default_literal(value) -> str:
+    """
+    Render ``value`` as a literal for an ``ADD COLUMN ... DEFAULT`` clause.
+
+    YDB is strict about default literals: numbers and booleans must be
+    unquoted (``DEFAULT 0``, ``DEFAULT true``), so the param-style quoting from
+    :func:`_quote_value` (which wraps numbers in quotes) cannot be reused here.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, Enum):
+        return _default_literal(value.value)
+    if isinstance(value, str):
+        return _quote_string(value)
+    error_message = (
+        f"YDB cannot render a column default of type {type(value).__name__!r}."
+    )
+    raise NotSupportedError(error_message)
+
+
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     """
     This class and its subclasses are responsible for emitting schema-changing
@@ -276,6 +298,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             return
         if col_type_suffix := field.db_type_suffix(connection=self.connection):
             definition += f" {col_type_suffix}"
+
+        # YDB rejects ``ADD COLUMN ... NOT NULL`` unless a DEFAULT backfills
+        # existing rows, so the field default must be materialised into the DDL.
+        # A NOT NULL column without a usable default cannot be added.
+        if not field.null:
+            default = self.effective_default(field)
+            if default is None:
+                error_message = (
+                    f"YDB cannot add the NOT NULL column {field.column!r} to "
+                    f"{model._meta.db_table!r} without a default value. Add it "
+                    f"as a nullable column or give the field a default."
+                )
+                raise NotSupportedError(error_message)
+            definition += f" DEFAULT {_default_literal(default)}"
 
         # Build the SQL and run it
         sql = self.sql_create_column % {

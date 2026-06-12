@@ -89,3 +89,5 @@ force-single-line = true
 "**/test_*.py" = ["S", "SLF", "ANN201", "ARG", "PLR2004", "PT012"]
 "conftest.py" = ["S", "ARG001"]
 "__init__.py" = ["F401", "F403"]
+# Migration modules follow Django's numeric naming convention (0001_initial).
+"**/migrations_*/*.py" = ["N999"]
