@@ -36,7 +36,7 @@ class TestFeatureFlags(SimpleTestCase):
         self.assertFalse(f.supports_partially_nullable_unique_constraints)
         self.assertFalse(f.allows_multiple_constraints_on_same_fields)
         # bulk insert
-        self.assertFalse(f.can_return_rows_from_bulk_insert)
+        self.assertTrue(f.can_return_rows_from_bulk_insert)
         self.assertFalse(f.supports_ignore_conflicts)
         # transactions / savepoints
         self.assertTrue(f.supports_transactions)

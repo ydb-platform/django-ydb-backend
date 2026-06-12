@@ -30,7 +30,9 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # constraint exists and some fields are nullable but not all of them?
     supports_partially_nullable_unique_constraints = False
 
-    can_return_rows_from_bulk_insert = False
+    # YDB returns Serial keys via INSERT ... RETURNING (in input row order),
+    # so bulk_create can read back generated primary keys safely.
+    can_return_rows_from_bulk_insert = True
     uses_savepoints = False
 
     # Can a fixture contain forward references? i.e., are
