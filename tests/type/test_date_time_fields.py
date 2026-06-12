@@ -48,6 +48,25 @@ class TimeFieldsTest(SimpleTestCase):
             aware_datetime.replace(tzinfo=None)
         )
 
+    def test_datetime_microsecond_precision(self):
+        # DateTimeField maps to YDB Timestamp, which keeps microseconds; the
+        # older Datetime mapping truncated values to whole seconds.
+        aware_datetime = datetime(
+            2025, 5, 15, 12, 30, 45, 123456, tzinfo=stdlib_timezone.utc
+        )
+
+        obj = TimeModel.objects.create(
+            date_field=date(2025, 5, 15),
+            datetime_field=aware_datetime,
+            duration_field=timedelta(hours=1),
+        )
+
+        fetched = TimeModel.objects.get(pk=obj.pk)
+        self.assertEqual(
+            fetched.datetime_field, aware_datetime.replace(tzinfo=None)
+        )
+        self.assertEqual(fetched.datetime_field.microsecond, 123456)
+
     def test_duration_field(self):
         test_duration = timedelta(days=5, hours=12, minutes=30)
 

@@ -44,7 +44,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
         "DateField": "Date",
-        "DateTimeField": "Datetime",
+        # Timestamp keeps microsecond precision; Datetime is second-precision.
+        "DateTimeField": "Timestamp",
         "DecimalField": "Decimal(22, 9)",
         "DurationField": "Interval",
         "FloatField": "Float",
