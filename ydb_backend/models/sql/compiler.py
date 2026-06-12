@@ -456,7 +456,7 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
 
 
 class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
-    def _prepare_sql_statement(self):
+    def _prepare_sql_statement(self, returning_columns=None):
         qn = self.connection.ops.quote_name
         opts = self.query.get_meta()
         fields = self.query.fields or [opts.pk]
@@ -471,11 +471,18 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
             field_types.append(f"{qn(f.column)}: {yql_type}")
         in_ = f"{', '.join(field_types)}"
 
+        select = (
+            f"SELECT {', '.join(qn(f.column) for f in fields)} FROM AS_TABLE($in_)"
+        )
+        if returning_columns:
+            # YDB returns database-generated keys (Serial) in input row order.
+            select += f" RETURNING {', '.join(qn(c) for c in returning_columns)}"
+
         return [
             f"DECLARE $in_ as List<Struct<{in_}>>;",
             f"{self._get_statement()} {qn(opts.db_table)}",
             f"({', '.join(qn(f.column) for f in fields)})",
-            f"SELECT {', '.join(qn(f.column) for f in fields)} FROM AS_TABLE($in_);"
+            f"{select};",
         ]
 
     def _prepare_params(self):
@@ -507,47 +514,44 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
     def _get_statement(self):
         raise NotImplementedError("Subclasses must implement this method")
 
-    def as_sql(self):
-        sql = self._prepare_sql_statement()
+    def as_sql(self, returning_columns=None):
+        sql = self._prepare_sql_statement(returning_columns)
         params = self._prepare_params()
         return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
         opts = self.query.get_meta()
-
-        if (returning_fields is None
-                and hasattr(opts, "pk")
-                and isinstance(opts.pk, (
-                        models.AutoField,
-                        models.SmallAutoField,
-                        models.BigAutoField
-                ))):
+        auto_pk = isinstance(
+            opts.pk,
+            (models.AutoField, models.SmallAutoField, models.BigAutoField),
+        )
+        if returning_fields is None and auto_pk:
             returning_fields = [opts.pk]
 
+        # Read database-generated primary keys with RETURNING. When the PK is
+        # supplied with the row (explicit value or non-auto PK) its value is
+        # already known, so RETURNING is unnecessary.
+        pk_supplied = bool(self.query.fields) and opts.pk in self.query.fields
+        use_returning = bool(returning_fields) and auto_pk and not pk_supplied
+        returning_columns = [opts.pk.column] if use_returning else None
+
         with self.connection.cursor() as cursor:
-            for sql, params in self.as_sql():
+            returned = []
+            for sql, params in self.as_sql(returning_columns):
                 cursor.execute(sql, params)
+                if use_returning and cursor.description:
+                    returned = cursor.fetchall()
 
             if not returning_fields:
                 return []
 
-            num_objects = len(self.query.objs)
-            if num_objects > 1:
-                last_id = self.connection.ops.last_insert_id(
-                    cursor,
-                    opts.db_table,
-                    opts.pk.column
-                )
-                first_id = last_id - num_objects + 1
-                rows = [(idx,) for idx in range(first_id, last_id + 1)]
+            if use_returning:
+                rows = [tuple(row) for row in returned]
             else:
-                rows = [(
-                    self.connection.ops.last_insert_id(
-                        cursor,
-                        opts.db_table,
-                        opts.pk.column
-                    ),
-                )]
+                # The PK is already known; echo it back from the inserted rows.
+                rows = [
+                    (self.pre_save_val(opts.pk, obj),) for obj in self.query.objs
+                ]
 
             cols = [field.get_col(opts.db_table) for field in returning_fields]
             converters = self.get_converters(cols)

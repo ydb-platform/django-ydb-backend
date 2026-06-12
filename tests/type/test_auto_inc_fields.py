@@ -117,4 +117,11 @@ class TestAutoIncFields(TransactionTestCase):
     def test_auto_field_sequence_after_manual_insert(self):
         SmallAutoIncModel.objects.create(small_id=32766, name="Manual Small")
         auto_obj = SmallAutoIncModel.objects.create(name="Auto Small")
-        self.assertTrue(auto_obj.small_id >= 32766)
+        # The serial generator is independent of manually inserted values;
+        # INSERT ... RETURNING returns the actual generated id, which must match
+        # the stored row (the old code returned MAX(pk) instead).
+        self.assertIsNotNone(auto_obj.small_id)
+        self.assertEqual(
+            SmallAutoIncModel.objects.get(name="Auto Small").small_id,
+            auto_obj.small_id,
+        )
