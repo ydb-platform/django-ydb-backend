@@ -7,6 +7,23 @@ Features:
 - All string types (CharField, TextField) are mapped to Utf 8.
 - Datetime is used for the DateTimeField, and timestamps are processed via .timestamp().
 
+## Query parameters
+
+YDB requires typed query parameters. The backend types each parameter from the
+Django expression that produced it — a lookup's value is typed from the
+left-hand side's field, nested expressions and subqueries from their own
+compilation — rather than by inspecting the generated SQL. A parameter whose
+type cannot be resolved is typed from its Python value.
+
+This covers joins, foreign-key filters, `__in`, `F()`, `Case`/`When`,
+annotations, aggregate (`HAVING`) filters and non-correlated subqueries.
+
+## Limitations
+
+- **Correlated subqueries are not supported.** `Exists()` / `Subquery()` with
+  `OuterRef` reference the outer table from inside the subquery, which YDB
+  cannot resolve. Non-correlated subqueries work.
+
 ## UPSERT Operation
 UPSERT (which stands for UPDATE or INSERT) updates or inserts multiple rows to a table based on a comparison by the primary key.
 Missing rows are added. For the existing rows, the values of the specified columns are updated, but the values of the other columns are preserved.
