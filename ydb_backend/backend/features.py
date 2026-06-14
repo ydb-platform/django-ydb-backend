@@ -5,7 +5,10 @@ from django.utils.functional import cached_property
 class DatabaseFeatures(BaseDatabaseFeatures):
     # An optional tuple indicating the minimum supported database version.
     minimum_database_version = (20,)
-    allows_group_by_selected_pks = True
+    # YDB has no functional-dependency GROUP BY: every selected non-aggregated
+    # column must appear in GROUP BY, so Django cannot group by the primary key
+    # alone while selecting its other columns.
+    allows_group_by_selected_pks = False
     # YDB rejects "GROUP BY 1" (ordinal reference) as a constant expression.
     allows_group_by_select_index = False
     update_can_self_select = False

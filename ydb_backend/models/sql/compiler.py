@@ -868,28 +868,41 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             return len(rows)
 
 
-class SQLAggregateCompiler(SQLAggregateCompiler):
+class SQLAggregateCompiler(_ParamTypingMixin, SQLAggregateCompiler):
     def as_sql(self):
         """
-        Create the SQL for this query. Return the SQL string and list of
-        parameters.
+        Compile a terminal aggregate query (``QuerySet.aggregate``) under this
+        backend's named-parameter model: ``%s`` placeholders are named
+        ``$element_N`` and bound as a typed dict. The base implementation
+        returns positional params, which the YDB driver rejects.
         """
-        sql, params = [], []
+        sql_parts, params, param_types = [], [], []
         for annotation in self.query.annotation_select.values():
-            ann_sql, ann_params = self.compile(annotation)
+            ann_sql, ann_params, ann_types = self._compile_capturing(annotation)
             ann_sql, ann_params = annotation.select_format(self, ann_sql, ann_params)
-            sql.append(ann_sql)
+            sql_parts.append(ann_sql)
             params.extend(ann_params)
+            param_types.extend(ann_types)
         self.col_count = len(self.query.annotation_select)
-        sql = ", ".join(sql)
-        params = tuple(params)
 
-        inner_query_sql, inner_query_params = self.query.inner_query.get_compiler(
+        inner_compiler = self.query.inner_query.get_compiler(
             self.using,
             elide_empty=self.elide_empty,
-        ).as_sql(with_col_aliases=True)
-        sql = f"SELECT {sql} FROM ({inner_query_sql}) subquery"
-        # ``params`` is a tuple while the inner query yields a list; normalise
-        # before concatenating so they compose.
-        params += tuple(inner_query_params)
-        return sql, params
+        )
+        # Subquery mode makes the inner query yield %s placeholders with a
+        # positional _TypedParam list (rather than a pre-named params dict).
+        was_subquery = inner_compiler.query.subquery
+        inner_compiler.query.subquery = True
+        try:
+            inner_sql, inner_params = inner_compiler.as_sql(with_col_aliases=True)
+        finally:
+            inner_compiler.query.subquery = was_subquery
+
+        sql = f"SELECT {', '.join(sql_parts)} FROM ({inner_sql}) subquery"
+
+        resolved = _resolve_typed_params(param_types, params) + [
+            (p.value, p.ydb_type) if isinstance(p, _TypedParam) else p
+            for p in inner_params
+        ]
+        sql, placeholder_rows = _replace_placeholders(sql)
+        return sql, {ph: resolved[i] for i, ph in enumerate(placeholder_rows)}

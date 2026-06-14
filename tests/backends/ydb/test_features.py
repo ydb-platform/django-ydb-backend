@@ -23,7 +23,7 @@ class TestFeatureFlags(SimpleTestCase):
     def test_all_flag_values(self):
         f = connection.features
         # group by
-        self.assertTrue(f.allows_group_by_selected_pks)
+        self.assertFalse(f.allows_group_by_selected_pks)
         self.assertFalse(f.allows_group_by_select_index)
         # update / delete
         self.assertFalse(f.update_can_self_select)
