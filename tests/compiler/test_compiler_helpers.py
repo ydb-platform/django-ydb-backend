@@ -144,7 +144,10 @@ class TestGetDataDateTimeField(SimpleTestCase):
         self.assertEqual(result[0]["occurred_at"] % 1_000_000, 654321)
 
     def test_int_timestamp_is_passed_through(self):
-        ts = int(datetime(2025, 3, 10, 8, 0, tzinfo=timezone.utc).timestamp())
+        # An int is already an epoch value (microseconds, matching YDB
+        # Timestamp) and must pass through untouched.
+        dt = datetime(2025, 3, 10, 8, 0, tzinfo=timezone.utc)
+        ts = int(dt.timestamp() * 1_000_000)
         field = _make_field("occurred_at", "DateTimeField")
         result = _get_data([field], [[ts]])
         self.assertEqual(result[0]["occurred_at"], ts)

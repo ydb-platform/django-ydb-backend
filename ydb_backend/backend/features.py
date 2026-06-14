@@ -319,8 +319,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "test_database_routing_batch_atomicity",
         },
         "Inserting a model that has only an auto primary key (no other "
-        "insertable fields) raises IndexError; QuerySet.contains()'s fixtures "
-        "create such rows.": {
+        "insertable fields) is not supported (raises NotSupportedError); "
+        "QuerySet.contains()'s fixtures create such rows.": {
             "queries.test_contains.ContainsTests.test_basic",
             "queries.test_contains.ContainsTests.test_evaluated_queryset",
             "queries.test_contains.ContainsTests.test_obj_type",

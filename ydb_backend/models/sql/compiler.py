@@ -183,8 +183,9 @@ def _resolve_one(field_type, val):
 
     if field_type == "DateTimeField":
         if isinstance(val, int):
-            # An extract comparison (e.g. __month=1) whose left-hand side is a
-            # DateTimeField but whose operand is an integer, not a timestamp.
+            # Extract-style comparison (e.g. __month=1): the operand is the
+            # extracted integer component, not an epoch timestamp, so type it as
+            # a plain Int32 rather than a Timestamp.
             return (val, ydb.PrimitiveType.Int32)
         return (_datetime_to_epoch_us(val), _ydb_types[field_type])
     if field_type in _ydb_types:
@@ -782,12 +783,14 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             if hasattr(val, "as_sql"):
                 sub_sql, sub_params, sub_types = self._compile_capturing(val)
                 assigned = placeholder % sub_sql
-                # YDB statically types an expression without a guaranteed value
-                # (e.g. bulk_update's CASE ... END with no ELSE) as Optional and
-                # refuses to assign it to a NOT NULL column. The WHERE clause
-                # already restricts the affected rows, so fall back to the
-                # column's current value to keep the assignment non-optional.
-                if not field.null:
+                # bulk_update emits ``CASE WHEN ... END`` with no ELSE, which YDB
+                # statically types as Optional and refuses to assign to a NOT
+                # NULL column. The WHERE clause already restricts the affected
+                # rows, so fall back to the column's current value to keep the
+                # CASE non-optional. Scoped to Case so an ordinary expression
+                # update still fails loudly on a genuine NULL assignment to a
+                # NOT NULL column.
+                if not field.null and isinstance(val, models.Case):
                     assigned = f"COALESCE({assigned}, {qn(name)})"
                 values.append(f"{qn(name)} = {assigned}")
                 update_params.extend(sub_params)
