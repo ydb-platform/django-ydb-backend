@@ -5,7 +5,10 @@ from django.utils.functional import cached_property
 class DatabaseFeatures(BaseDatabaseFeatures):
     # An optional tuple indicating the minimum supported database version.
     minimum_database_version = (20,)
-    allows_group_by_selected_pks = True
+    # YDB has no functional-dependency GROUP BY: every selected non-aggregated
+    # column must appear in GROUP BY, so Django cannot group by the primary key
+    # alone while selecting its other columns.
+    allows_group_by_selected_pks = False
     # YDB rejects "GROUP BY 1" (ordinal reference) as a constant expression.
     allows_group_by_select_index = False
     update_can_self_select = False
@@ -201,7 +204,134 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     django_test_expected_failures = set()
 
     # A map of reasons to sets of dotted paths to tests in Django's test suite
-    # that should be skipped for this database.
-    django_test_skips = {}
+    # that should be skipped for this database. Populated while triaging the
+    # bundled Django suite via the conformance harness (issue #72); entries are
+    # inert for this project's own test suite because the guarded test apps are
+    # not in its INSTALLED_APPS.
+    django_test_skips = {
+        "Naive datetimes are converted through the server/Django timezone "
+        "under USE_TZ=False, so values shift instead of round-tripping. "
+        "Microsecond precision is preserved; the timezone handling is the gap.": {
+            "basic.tests.ModelInstanceCreationTests."
+            "test_for_datetimefields_saves_as_much_precision_as_was_given",
+            "basic.tests.ModelTest.test_microsecond_precision",
+            "basic.tests.ModelRefreshTests.test_refresh",
+            "basic.tests.ModelRefreshTests.test_refresh_unsaved",
+        },
+        "Saving a model whose primary key has a database default issues a "
+        "different number of queries on YDB (INSERT ... RETURNING).": {
+            "basic.tests.ModelInstanceCreationTests."
+            "test_save_parent_primary_with_default",
+        },
+        "select-on-save with an update that matches no rows raises instead of "
+        "falling back to INSERT.": {
+            "basic.tests.SelectOnSaveTests.test_select_on_save_lying_update",
+        },
+        # --- lookup module (issue #72), grouped by observed failure mode. ---
+        "TimeField is not supported: YDB has no native time type.": {
+            "lookup.test_timefield.TimeFieldLookupTests.test_hour_lookups",
+            "lookup.test_timefield.TimeFieldLookupTests.test_minute_lookups",
+            "lookup.test_timefield.TimeFieldLookupTests.test_second_lookups",
+        },
+        "A subquery used as the left-hand side of a lookup (Exists/OuterRef/"
+        "subquery LHS) resolves to an unknown YQL member; correlated subqueries "
+        "are unsupported.": {
+            "lookup.tests.LookupQueryingTests.test_filter_exists_lhs",
+            "lookup.tests.LookupQueryingTests.test_filter_subquery_lhs",
+            "lookup.tests.LookupTests.test_exact_exists",
+            "lookup.tests.LookupTests.test_nested_outerref_lhs",
+        },
+        "String escaping for backslashes/special characters in pattern and "
+        "exact lookups is incorrect (YQL token recognition error / wrong rows).": {
+            "lookup.tests.LookupTests.test_escaping",
+            "lookup.tests.LookupTests.test_pattern_lookups_with_substr",
+        },
+        "Lookups that coerce a value to a different field type (int-as-str, "
+        "date-as-str) or apply regex to non-string/NULL operands raise during "
+        "parameter handling.": {
+            "lookup.tests.LookupTests.test_lookup_int_as_str",
+            "lookup.tests.LookupTests.test_lookup_date_as_str",
+            "lookup.tests.LookupTests.test_regex_non_string",
+            "lookup.tests.LookupTests.test_regex_null",
+        },
+        "YDB GROUP BY validation rejects the SQL Django emits for these "
+        "aggregate/decimal lookup queries.": {
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_gt",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_gte",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_lt",
+            "lookup.test_decimalfield.DecimalFieldLookupTests.test_lte",
+            "lookup.tests.LookupQueryingTests.test_aggregate_combined_lookup",
+        },
+        "exclude()/values()/none()/__in projections return incorrect results "
+        "or raise in the compiler.": {
+            "lookup.tests.LookupTests.test_exclude",
+            "lookup.tests.LookupTests.test_values",
+            "lookup.tests.LookupTests.test_none",
+            "lookup.tests.LookupTests.test_in_keeps_value_ordering",
+            "lookup.tests.LookupTests.test_lookup_collision",
+        },
+        # --- queries module (issue #72). Plain union() now works; these are
+        #     the remaining combinator sub-features. ---
+        "ORDER BY / values_list ordering on a UNION result is not yet handled "
+        "correctly.": {
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_ordering_by_alias",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_ordering_by_f_expression_and_alias",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_order_raises_on_non_selected_column",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_and_order",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_and_order_on_annotation",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_values_list_on_annotated_and_unannotated",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_multiple_models_with_values_list_and_order",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_multiple_models_with_values_list_and_order_by_extra_select",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_with_two_annotated_values_list",
+        },
+        "A UNION used as a subquery / with OuterRef, or wrapped for COUNT, "
+        "still generates invalid SQL.": {
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_in_subquery",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_union_in_subquery_related_outerref",
+            "queries.test_qs_combinators.QuerySetSetOperationTests."
+            "test_count_union",
+        },
+        "bulk_update() works but issues a different number of queries on YDB "
+        "(extra INSERT ... RETURNING round-trips), failing assertNumQueries.": {
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_simple",
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_multiple_fields",
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_batch_size",
+            "queries.test_bulk_update.BulkUpdateNoteTests."
+            "test_foreign_keys_do_not_lookup",
+        },
+        "bulk_update() with database functions, JSONField, or multi-table "
+        "inheritance is not fully supported.": {
+            "queries.test_bulk_update.BulkUpdateNoteTests.test_functions",
+            "queries.test_bulk_update.BulkUpdateTests.test_json_field",
+            "queries.test_bulk_update.BulkUpdateTests.test_inherited_fields",
+        },
+        "Requires multiple configured databases (database routing).": {
+            "queries.test_bulk_update.BulkUpdateTests.test_database_routing",
+            "queries.test_bulk_update.BulkUpdateTests."
+            "test_database_routing_batch_atomicity",
+        },
+        "Inserting a model that has only an auto primary key (no other "
+        "insertable fields) is not supported (raises NotSupportedError); "
+        "QuerySet.contains()'s fixtures create such rows.": {
+            "queries.test_contains.ContainsTests.test_basic",
+            "queries.test_contains.ContainsTests.test_evaluated_queryset",
+            "queries.test_contains.ContainsTests.test_obj_type",
+            "queries.test_contains.ContainsTests.test_proxy_model",
+            "queries.test_contains.ContainsTests.test_unsaved_obj",
+            "queries.test_contains.ContainsTests.test_values",
+            "queries.test_contains.ContainsTests.test_wrong_model",
+        },
+    }
 
     supports_transactions = True

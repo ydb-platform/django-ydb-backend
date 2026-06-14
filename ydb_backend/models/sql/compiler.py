@@ -9,6 +9,7 @@ import ydb
 from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
 from django.core.exceptions import FullResultSet
+from django.db import DatabaseError
 from django.db import NotSupportedError
 from django.db import models
 from django.db.models.expressions import RawSQL
@@ -25,8 +26,13 @@ _ydb_types = {
     "BooleanField": ydb.PrimitiveType.Bool,
     # TODO: make the method limit the number of characters
     "CharField": ydb.PrimitiveType.Utf8,
-    "DateField": ydb.PrimitiveType.Date,
-    "DateTimeField": ydb.PrimitiveType.Datetime,
+    # Date32/Timestamp64 are signed and wide-range, so dates before 1970 (e.g.
+    # historical dates in fixtures) round-trip; Timestamp64 keeps microseconds.
+    "DateField": ydb.PrimitiveType.Date32,
+    "DateTimeField": ydb.PrimitiveType.Timestamp64,
+    # YDB has no native time type; store the time of day as microseconds since
+    # midnight in an Int64.
+    "TimeField": ydb.PrimitiveType.Int64,
     "DurationField": ydb.PrimitiveType.Interval,
     "FileField": ydb.PrimitiveType.String,
     "FilePathField": ydb.PrimitiveType.Utf8,
@@ -144,6 +150,23 @@ _TEMPORAL_FIELD_TYPES = frozenset(
 )
 
 
+def _datetime_to_epoch_us(value):
+    """
+    Return a datetime as epoch microseconds for binding to a YDB Timestamp.
+
+    ``round`` keeps full microsecond precision (``int(value.timestamp())`` would
+    truncate to whole seconds). The value may be negative (before 1970): the
+    column is a signed Timestamp64, which accepts pre-epoch instants.
+    """
+    return int(round(value.timestamp() * 1_000_000))
+
+
+def _time_to_micros(value):
+    """Microseconds since midnight for a time, for binding to a YDB Int64."""
+    seconds = value.hour * 3600 + value.minute * 60 + value.second
+    return seconds * 1_000_000 + value.microsecond
+
+
 class _TypedParam:
     """
     A query parameter that already carries its YDB type. Subquery compilers
@@ -171,16 +194,24 @@ def _resolve_one(field_type, val):
 
     if field_type == "DateTimeField":
         if isinstance(val, int):
-            # An extract comparison (e.g. __month=1) whose left-hand side is a
-            # DateTimeField but whose operand is an integer, not a timestamp.
+            # Extract-style comparison (e.g. __month=1): the operand is the
+            # extracted integer component, not an epoch timestamp, so type it as
+            # a plain Int32 rather than a Timestamp.
             return (val, ydb.PrimitiveType.Int32)
-        return (int(val.timestamp()), _ydb_types[field_type])
+        return (_datetime_to_epoch_us(val), _ydb_types[field_type])
+    if field_type == "TimeField":
+        # time of day as microseconds since midnight (Int64).
+        if isinstance(val, int):
+            return (val, _ydb_types[field_type])
+        return (_time_to_micros(val), _ydb_types[field_type])
     if field_type in _ydb_types:
         return (val, _ydb_types[field_type])
     if isinstance(val, datetime):
-        return (int(val.timestamp()), ydb.PrimitiveType.Datetime)
+        return (_datetime_to_epoch_us(val), ydb.PrimitiveType.Timestamp64)
+    if isinstance(val, time):
+        return (_time_to_micros(val), ydb.PrimitiveType.Int64)
     if isinstance(val, date):
-        return (val, ydb.PrimitiveType.Date)
+        return (val, ydb.PrimitiveType.Date32)
     return (val, _infer_ydb_type(val))
 
 
@@ -205,8 +236,13 @@ def _generate_params_for_update(placeholder_rows, internal_types, params):
 
 
 def _get_field_internal_type(field):
-    if getattr(field, "remote_field", None) and hasattr(field, "target_field"):
-        return field.target_field.get_internal_type()
+    # A relation column stores the concrete type of its target's primary key,
+    # and that target may itself be a relation (e.g. a OneToOneField primary
+    # key under multi-table inheritance). Follow the chain to the concrete
+    # field. It always terminates: every relation ultimately resolves to a
+    # non-relation primary key, and model graphs cannot make this cyclic.
+    while getattr(field, "remote_field", None) and hasattr(field, "target_field"):
+        field = field.target_field
     return field.get_internal_type()
 
 
@@ -217,11 +253,13 @@ def _get_data(fields, param_rows):
         struct = {}
         for j in range(len(fields)):
             val = param_rows[i][j]
-            is_dt = _get_field_internal_type(fields[j]) == "DateTimeField"
-            if is_dt and val is not None:
-                struct[fields[j].column] = (
-                    val if isinstance(val, int) else int(val.timestamp())
-                )
+            internal_type = _get_field_internal_type(fields[j])
+            if val is None or isinstance(val, int):
+                struct[fields[j].column] = val
+            elif internal_type == "DateTimeField":
+                struct[fields[j].column] = _datetime_to_epoch_us(val)
+            elif internal_type == "TimeField":
+                struct[fields[j].column] = _time_to_micros(val)
             else:
                 struct[fields[j].column] = val
         result.append(struct)
@@ -454,6 +492,81 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
             # Finally do cleanup - get rid of the joins we created above.
             self.query.reset_refcounts(refcounts_before)
 
+    def get_combinator_sql(self, combinator, all_):
+        """
+        Compose a compound (UNION/...) query under this backend's named
+        parameter model.
+
+        Django's base implementation concatenates each part's positional
+        parameters. This backend's top-level ``as_sql`` instead returns
+        ``$element_N``-named SQL with a params dict, so concatenating parts
+        collides their placeholder names (``Unknown name: $element_2``).
+        Compiling each part in subquery mode makes it yield ``%s`` placeholders
+        with a positional ``_TypedParam`` list, letting the enclosing query name
+        every placeholder once across the whole statement.
+        """
+        features = self.connection.features
+        compilers = [
+            query.get_compiler(self.using, self.connection, self.elide_empty)
+            for query in self.query.combined_queries
+        ]
+        if not features.supports_slicing_ordering_in_compound:
+            for sub_compiler in compilers:
+                if sub_compiler.query.is_sliced:
+                    msg = (
+                        "LIMIT/OFFSET not allowed in subqueries of compound "
+                        "statements."
+                    )
+                    raise DatabaseError(msg)
+                if sub_compiler.get_order_by():
+                    msg = "ORDER BY not allowed in subqueries of compound statements."
+                    raise DatabaseError(msg)
+        parts = []
+        for sub_compiler in compilers:
+            try:
+                # Combined queries must share the outer query's column list.
+                if (
+                    not sub_compiler.query.values_select
+                    and self.query.values_select
+                ):
+                    sub_compiler.query = sub_compiler.query.clone()
+                    sub_compiler.query.set_values(
+                        (
+                            *self.query.extra_select,
+                            *self.query.values_select,
+                            *self.query.annotation_select,
+                        )
+                    )
+                # Force the subquery parameter model: %s placeholders plus a
+                # positional list of _TypedParam values, restoring the flag so
+                # the part is not otherwise affected.
+                was_subquery = sub_compiler.query.subquery
+                sub_compiler.query.subquery = True
+                try:
+                    part_sql, part_params = sub_compiler.as_sql(with_col_aliases=True)
+                finally:
+                    sub_compiler.query.subquery = was_subquery
+                if sub_compiler.query.combinator:
+                    part_sql = f"SELECT * FROM ({part_sql})"
+                parts.append((part_sql, part_params))
+            except EmptyResultSet:  # noqa: PERF203
+                # Omit an empty queryset with UNION (and DIFFERENCE if the
+                # first queryset is non-empty).
+                if combinator == "union" or (combinator == "difference" and parts):
+                    continue
+                raise
+        if not parts:
+            raise EmptyResultSet
+        combinator_sql = self.connection.ops.set_operators[combinator]
+        if all_ and combinator == "union":
+            combinator_sql += " ALL"
+        sql_parts, params_parts = zip(*parts)
+        result = [f" {combinator_sql} ".join(sql_parts)]
+        params = []
+        for part in params_parts:
+            params.extend(part)
+        return result, params
+
 
 class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
     def _prepare_sql_statement(self, returning_columns=None):
@@ -487,21 +600,31 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
     def _prepare_params(self):
         opts = self.query.get_meta()
-        fields = self.query.fields or [opts.pk]
 
-        if self.query.fields:
-            value_rows = [
-                [
-                    self.prepare_value(field, self.pre_save_val(field, obj))
-                    for field in fields
-                ]
-                for obj in self.query.objs
+        if not self.query.fields:
+            # No column values to insert: the table's only column is an
+            # auto-increment (Serial) primary key. YDB has no
+            # ``INSERT ... DEFAULT VALUES`` and rejects NULL for a Serial
+            # column, so such a row cannot be inserted and the database must
+            # generate the key. This is reached by multi-table inheritance
+            # parents and by models that define only a primary key.
+            error_message = (
+                "YDB cannot insert a row with no column values "
+                f"({opts.label}): a table whose only column is an "
+                "auto-increment primary key has no INSERT ... DEFAULT VALUES "
+                "support. Multi-table inheritance and primary-key-only models "
+                "are affected."
+            )
+            raise NotSupportedError(error_message)
+
+        fields = self.query.fields
+        value_rows = [
+            [
+                self.prepare_value(field, self.pre_save_val(field, obj))
+                for field in fields
             ]
-        else:
-            value_rows = [
-                [self.connection.ops.pk_default_value()] for _ in self.query.objs
-            ]
-            fields = [None]
+            for obj in self.query.objs
+        ]
 
         _, param_rows = self.assemble_as_sql(fields, value_rows)
         return {
@@ -679,7 +802,17 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             name = field.column
             if hasattr(val, "as_sql"):
                 sub_sql, sub_params, sub_types = self._compile_capturing(val)
-                values.append(f"{qn(name)} = {placeholder % sub_sql}")
+                assigned = placeholder % sub_sql
+                # bulk_update emits ``CASE WHEN ... END`` with no ELSE, which YDB
+                # statically types as Optional and refuses to assign to a NOT
+                # NULL column. The WHERE clause already restricts the affected
+                # rows, so fall back to the column's current value to keep the
+                # CASE non-optional. Scoped to Case so an ordinary expression
+                # update still fails loudly on a genuine NULL assignment to a
+                # NOT NULL column.
+                if not field.null and isinstance(val, models.Case):
+                    assigned = f"COALESCE({assigned}, {qn(name)})"
+                values.append(f"{qn(name)} = {assigned}")
                 update_params.extend(sub_params)
                 set_types += sub_types
             elif val is not None:
@@ -735,26 +868,41 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             return len(rows)
 
 
-class SQLAggregateCompiler(SQLAggregateCompiler):
+class SQLAggregateCompiler(_ParamTypingMixin, SQLAggregateCompiler):
     def as_sql(self):
         """
-        Create the SQL for this query. Return the SQL string and list of
-        parameters.
+        Compile a terminal aggregate query (``QuerySet.aggregate``) under this
+        backend's named-parameter model: ``%s`` placeholders are named
+        ``$element_N`` and bound as a typed dict. The base implementation
+        returns positional params, which the YDB driver rejects.
         """
-        sql, params = [], []
+        sql_parts, params, param_types = [], [], []
         for annotation in self.query.annotation_select.values():
-            ann_sql, ann_params = self.compile(annotation)
+            ann_sql, ann_params, ann_types = self._compile_capturing(annotation)
             ann_sql, ann_params = annotation.select_format(self, ann_sql, ann_params)
-            sql.append(ann_sql)
+            sql_parts.append(ann_sql)
             params.extend(ann_params)
+            param_types.extend(ann_types)
         self.col_count = len(self.query.annotation_select)
-        sql = ", ".join(sql)
-        params = tuple(params)
 
-        inner_query_sql, inner_query_params = self.query.inner_query.get_compiler(
+        inner_compiler = self.query.inner_query.get_compiler(
             self.using,
             elide_empty=self.elide_empty,
-        ).as_sql(with_col_aliases=True)
-        sql = f"SELECT {sql} FROM ({inner_query_sql}) subquery"
-        params += inner_query_params
-        return sql, params
+        )
+        # Subquery mode makes the inner query yield %s placeholders with a
+        # positional _TypedParam list (rather than a pre-named params dict).
+        was_subquery = inner_compiler.query.subquery
+        inner_compiler.query.subquery = True
+        try:
+            inner_sql, inner_params = inner_compiler.as_sql(with_col_aliases=True)
+        finally:
+            inner_compiler.query.subquery = was_subquery
+
+        sql = f"SELECT {', '.join(sql_parts)} FROM ({inner_sql}) subquery"
+
+        resolved = _resolve_typed_params(param_types, params) + [
+            (p.value, p.ydb_type) if isinstance(p, _TypedParam) else p
+            for p in inner_params
+        ]
+        sql, placeholder_rows = _replace_placeholders(sql)
+        return sql, {ph: resolved[i] for i, ph in enumerate(placeholder_rows)}

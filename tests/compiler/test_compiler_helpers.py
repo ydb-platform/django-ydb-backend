@@ -29,15 +29,17 @@ class TestGenerateParamsForUpdateDateTimeField(SimpleTestCase):
 
     def test_datetime_object_is_converted_to_timestamp(self):
         import ydb
-        dt = datetime(2025, 6, 15, 10, 30, tzinfo=timezone.utc)
+        dt = datetime(2025, 6, 15, 10, 30, 0, 123456, tzinfo=timezone.utc)
         result = _generate_params_for_update(
             placeholder_rows=["$p1"],
             internal_types=["DateTimeField"],
             params=(dt,),
         )
         ts, ydb_type = result["$p1"]
-        self.assertEqual(ts, int(dt.timestamp()))
-        self.assertEqual(ydb_type, ydb.PrimitiveType.Datetime)
+        # Epoch microseconds (YDB Timestamp), so sub-second precision survives.
+        self.assertEqual(ts, int(round(dt.timestamp() * 1_000_000)))
+        self.assertEqual(ts % 1_000_000, 123456)
+        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp64)
 
     def test_extract_int_uses_int32_type(self):
         # filter(field__month=1) compares an integer against a DateTimeField.
@@ -83,8 +85,8 @@ class TestGenerateParamsForUpdateDateTimeField(SimpleTestCase):
             params=(dt,),
         )
         stored, ydb_type = result["$p1"]
-        self.assertEqual(stored, int(dt.timestamp()))
-        self.assertEqual(ydb_type, ydb.PrimitiveType.Datetime)
+        self.assertEqual(stored, int(round(dt.timestamp() * 1_000_000)))
+        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp64)
 
 
 class TestGenerateParamsForUpdateUnresolvedType(SimpleTestCase):
@@ -132,13 +134,20 @@ class TestGetDataDateTimeField(SimpleTestCase):
     """Regression tests for _get_data with int timestamps."""
 
     def test_datetime_object_is_converted(self):
-        dt = datetime(2025, 3, 10, 8, 0, tzinfo=timezone.utc)
+        dt = datetime(2025, 3, 10, 8, 0, 0, 654321, tzinfo=timezone.utc)
         field = _make_field("occurred_at", "DateTimeField")
         result = _get_data([field], [[dt]])
-        self.assertEqual(result[0]["occurred_at"], int(dt.timestamp()))
+        # Epoch microseconds (YDB Timestamp), preserving sub-second precision.
+        self.assertEqual(
+            result[0]["occurred_at"], int(round(dt.timestamp() * 1_000_000))
+        )
+        self.assertEqual(result[0]["occurred_at"] % 1_000_000, 654321)
 
     def test_int_timestamp_is_passed_through(self):
-        ts = int(datetime(2025, 3, 10, 8, 0, tzinfo=timezone.utc).timestamp())
+        # An int is already an epoch value (microseconds, matching YDB
+        # Timestamp) and must pass through untouched.
+        dt = datetime(2025, 3, 10, 8, 0, tzinfo=timezone.utc)
+        ts = int(dt.timestamp() * 1_000_000)
         field = _make_field("occurred_at", "DateTimeField")
         result = _get_data([field], [[ts]])
         self.assertEqual(result[0]["occurred_at"], ts)

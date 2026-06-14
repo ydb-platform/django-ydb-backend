@@ -83,7 +83,7 @@ class TestDatabaseOperations(SimpleTestCase):
             sql_dt,
             "cast(AddTimezone(DateTime::MakeDatetime("
             "DateTime::StartOfQuarter(Datetime('2019-06-06T01:02:03Z'))), "
-            "'Europe/Moscow') as date)",
+            "'Europe/Moscow') as Date32)",
         )
 
         self.assertEqual(

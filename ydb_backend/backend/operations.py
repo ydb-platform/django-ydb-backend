@@ -1,3 +1,4 @@
+import datetime
 import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
@@ -13,6 +14,11 @@ DATE_PARAMS_EXTRACT = [
     "day_of_month",
     "day_of_week",
     "day_of_week_name",
+    # Django's standard Extract lookup names.
+    "week_day",
+    "iso_week_day",
+    "week",
+    "quarter",
 ]
 
 DATE_PARAMS_TRUNC = [
@@ -44,6 +50,17 @@ def _common_dt_dttm_extract_funcs(lookup_type, sql, params):
         return f"DateTime::GetDayOfWeek({sql})", params
     if lookup_type == "day_of_week_name":
         return f"DateTime::GetDayOfWeekName({sql})", params
+    # Django's ``__week_day`` numbers days 1=Sunday..7=Saturday, while YDB's
+    # GetDayOfWeek is 1=Monday..7=Sunday; convert between the two conventions.
+    if lookup_type == "week_day":
+        return f"((DateTime::GetDayOfWeek({sql}) % 7) + 1)", params
+    # Django's ``__iso_week_day`` is 1=Monday..7=Sunday, matching GetDayOfWeek.
+    if lookup_type == "iso_week_day":
+        return f"DateTime::GetDayOfWeek({sql})", params
+    if lookup_type == "week":
+        return f"DateTime::GetWeekOfYearIso8601({sql})", params
+    if lookup_type == "quarter":
+        return f"((DateTime::GetMonth({sql}) - 1) / 3 + 1)", params
     msg = f"Unsupported lookup type: {lookup_type}"
     raise ValueError(msg)
 
@@ -88,8 +105,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         "BinaryField": "CAST(%(expression)s AS String)",
         "BooleanField": "CAST(%(expression)s AS Bool)",
         "CharField": "CAST(%(expression)s AS Utf8)",
-        "DateField": "CAST(%(expression)s AS Date)",
-        "DateTimeField": "CAST(%(expression)s AS Datetime)",
+        "DateField": "CAST(%(expression)s AS Date32)",
+        "DateTimeField": "CAST(%(expression)s AS Timestamp64)",
         "DecimalField": "CAST(%(expression)s AS "
         "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
@@ -152,7 +169,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         Return the SQL to cast a datetime value to date value.
         """
         sql = _add_tzname(sql, tzname)
-        return f"cast({sql} as date)", params
+        # Date32 (signed/wide) so casting from a Timestamp64 / TzTimestamp64
+        # works; the narrow Date type rejects it.
+        return f"cast({sql} as Date32)", params
 
     def datetime_cast_time_sql(self, sql, params, tzname):
         """
@@ -381,6 +400,24 @@ class DatabaseOperations(BaseDatabaseOperations):
         by the backends driver for time columns.
         """
         return value
+
+    def get_db_converters(self, expression):
+        converters = super().get_db_converters(expression)
+        if expression.output_field.get_internal_type() == "TimeField":
+            converters.append(self.convert_timefield_value)
+        return converters
+
+    def convert_timefield_value(self, value, expression, connection):
+        """
+        Rebuild a ``time`` from the Int64 microseconds-since-midnight a
+        ``TimeField`` is stored as (see DatabaseWrapper.data_types).
+        """
+        if value is None or isinstance(value, datetime.time):
+            return value
+        seconds, microsecond = divmod(int(value), 1_000_000)
+        minutes, second = divmod(seconds, 60)
+        hour, minute = divmod(minutes, 60)
+        return datetime.time(hour, minute, second, microsecond)
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
         """

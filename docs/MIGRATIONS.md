@@ -84,6 +84,22 @@ as ordinary tables.
 - PK must be explicitly specified when creating the table (PRIMARY KEY (%(primary_key)s)).
 - You cannot change the PK after creating the table (raises `NotSupportedError`).
 
+## Multi-table inheritance and primary-key-only models
+
+**Not supported (raises `NotSupportedError`):** inserting a row whose only
+column is an auto-increment (`Serial`) primary key. YDB has no
+`INSERT ... DEFAULT VALUES`, rejects `NULL` for a `Serial` column, and the
+database — not the client — generates the key, so there is no value to insert.
+
+This affects two model shapes:
+
+- **Multi-table inheritance** (`class Child(Parent)` with a concrete parent):
+  saving a child first inserts the parent row, which is primary-key-only.
+- **Primary-key-only models** (`class M(models.Model): pass`).
+
+Use a single concrete model (or `abstract = True` base classes) and give models
+at least one non-primary-key field.
+
 ## Comments and metadata
 **Not supported:**
 - Comments on tables/columns (sql_alter_table_comment = None).
