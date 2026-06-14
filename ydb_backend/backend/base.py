@@ -43,9 +43,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BigAutoField": "BigSerial",
         "BooleanField": "Bool",
         "CharField": "Utf8",  # TODO: make the method limit the number of characters
-        "DateField": "Date",
-        # Timestamp keeps microsecond precision; Datetime is second-precision.
-        "DateTimeField": "Timestamp",
+        # Date32/Timestamp64 are signed and wide-range, so dates before 1970
+        # round-trip; Timestamp64 keeps microsecond precision.
+        "DateField": "Date32",
+        "DateTimeField": "Timestamp64",
+        # YDB has no time type; store the time of day as Int64 microseconds
+        # since midnight (introspects back as BigIntegerField).
+        "TimeField": "Int64",
         "DecimalField": "Decimal(22, 9)",
         "DurationField": "Interval",
         "FloatField": "Float",

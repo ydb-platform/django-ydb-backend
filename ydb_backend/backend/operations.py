@@ -1,3 +1,4 @@
+import datetime
 import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
@@ -104,8 +105,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         "BinaryField": "CAST(%(expression)s AS String)",
         "BooleanField": "CAST(%(expression)s AS Bool)",
         "CharField": "CAST(%(expression)s AS Utf8)",
-        "DateField": "CAST(%(expression)s AS Date)",
-        "DateTimeField": "CAST(%(expression)s AS Timestamp)",
+        "DateField": "CAST(%(expression)s AS Date32)",
+        "DateTimeField": "CAST(%(expression)s AS Timestamp64)",
         "DecimalField": "CAST(%(expression)s AS "
         "Decimal(%(max_digits)s, %(decimal_places)s))",
         "DurationField": "CAST(%(expression)s AS Interval)",
@@ -168,7 +169,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         Return the SQL to cast a datetime value to date value.
         """
         sql = _add_tzname(sql, tzname)
-        return f"cast({sql} as date)", params
+        # Date32 (signed/wide) so casting from a Timestamp64 / TzTimestamp64
+        # works; the narrow Date type rejects it.
+        return f"cast({sql} as Date32)", params
 
     def datetime_cast_time_sql(self, sql, params, tzname):
         """
@@ -397,6 +400,24 @@ class DatabaseOperations(BaseDatabaseOperations):
         by the backends driver for time columns.
         """
         return value
+
+    def get_db_converters(self, expression):
+        converters = super().get_db_converters(expression)
+        if expression.output_field.get_internal_type() == "TimeField":
+            converters.append(self.convert_timefield_value)
+        return converters
+
+    def convert_timefield_value(self, value, expression, connection):
+        """
+        Rebuild a ``time`` from the Int64 microseconds-since-midnight a
+        ``TimeField`` is stored as (see DatabaseWrapper.data_types).
+        """
+        if value is None or isinstance(value, datetime.time):
+            return value
+        seconds, microsecond = divmod(int(value), 1_000_000)
+        minutes, second = divmod(seconds, 60)
+        hour, minute = divmod(minutes, 60)
+        return datetime.time(hour, minute, second, microsecond)
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
         """

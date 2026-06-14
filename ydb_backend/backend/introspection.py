@@ -124,9 +124,13 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         "Yson": "TextField",
         "UUID": "UUIDField",
         "Date": "DateField",
+        "Date32": "DateField",
         "Datetime": "DateTimeField",
+        "Datetime64": "DateTimeField",
         "Timestamp": "DateTimeField",
+        "Timestamp64": "DateTimeField",
         "Interval": "DurationField",
+        "Interval64": "DurationField",
     }
 
     def get_yql_type(self, internal_type):

@@ -39,7 +39,7 @@ class TestGenerateParamsForUpdateDateTimeField(SimpleTestCase):
         # Epoch microseconds (YDB Timestamp), so sub-second precision survives.
         self.assertEqual(ts, int(round(dt.timestamp() * 1_000_000)))
         self.assertEqual(ts % 1_000_000, 123456)
-        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp)
+        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp64)
 
     def test_extract_int_uses_int32_type(self):
         # filter(field__month=1) compares an integer against a DateTimeField.
@@ -86,7 +86,7 @@ class TestGenerateParamsForUpdateDateTimeField(SimpleTestCase):
         )
         stored, ydb_type = result["$p1"]
         self.assertEqual(stored, int(round(dt.timestamp() * 1_000_000)))
-        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp)
+        self.assertEqual(ydb_type, ydb.PrimitiveType.Timestamp64)
 
 
 class TestGenerateParamsForUpdateUnresolvedType(SimpleTestCase):

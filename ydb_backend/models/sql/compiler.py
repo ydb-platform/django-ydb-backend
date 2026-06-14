@@ -26,9 +26,13 @@ _ydb_types = {
     "BooleanField": ydb.PrimitiveType.Bool,
     # TODO: make the method limit the number of characters
     "CharField": ydb.PrimitiveType.Utf8,
-    "DateField": ydb.PrimitiveType.Date,
-    # Timestamp keeps microsecond precision; Datetime is second-precision.
-    "DateTimeField": ydb.PrimitiveType.Timestamp,
+    # Date32/Timestamp64 are signed and wide-range, so dates before 1970 (e.g.
+    # historical dates in fixtures) round-trip; Timestamp64 keeps microseconds.
+    "DateField": ydb.PrimitiveType.Date32,
+    "DateTimeField": ydb.PrimitiveType.Timestamp64,
+    # YDB has no native time type; store the time of day as microseconds since
+    # midnight in an Int64.
+    "TimeField": ydb.PrimitiveType.Int64,
     "DurationField": ydb.PrimitiveType.Interval,
     "FileField": ydb.PrimitiveType.String,
     "FilePathField": ydb.PrimitiveType.Utf8,
@@ -151,9 +155,16 @@ def _datetime_to_epoch_us(value):
     Return a datetime as epoch microseconds for binding to a YDB Timestamp.
 
     ``round`` keeps full microsecond precision (``int(value.timestamp())`` would
-    truncate to whole seconds).
+    truncate to whole seconds). The value may be negative (before 1970): the
+    column is a signed Timestamp64, which accepts pre-epoch instants.
     """
     return int(round(value.timestamp() * 1_000_000))
+
+
+def _time_to_micros(value):
+    """Microseconds since midnight for a time, for binding to a YDB Int64."""
+    seconds = value.hour * 3600 + value.minute * 60 + value.second
+    return seconds * 1_000_000 + value.microsecond
 
 
 class _TypedParam:
@@ -188,12 +199,19 @@ def _resolve_one(field_type, val):
             # a plain Int32 rather than a Timestamp.
             return (val, ydb.PrimitiveType.Int32)
         return (_datetime_to_epoch_us(val), _ydb_types[field_type])
+    if field_type == "TimeField":
+        # time of day as microseconds since midnight (Int64).
+        if isinstance(val, int):
+            return (val, _ydb_types[field_type])
+        return (_time_to_micros(val), _ydb_types[field_type])
     if field_type in _ydb_types:
         return (val, _ydb_types[field_type])
     if isinstance(val, datetime):
-        return (_datetime_to_epoch_us(val), ydb.PrimitiveType.Timestamp)
+        return (_datetime_to_epoch_us(val), ydb.PrimitiveType.Timestamp64)
+    if isinstance(val, time):
+        return (_time_to_micros(val), ydb.PrimitiveType.Int64)
     if isinstance(val, date):
-        return (val, ydb.PrimitiveType.Date)
+        return (val, ydb.PrimitiveType.Date32)
     return (val, _infer_ydb_type(val))
 
 
@@ -235,11 +253,13 @@ def _get_data(fields, param_rows):
         struct = {}
         for j in range(len(fields)):
             val = param_rows[i][j]
-            is_dt = _get_field_internal_type(fields[j]) == "DateTimeField"
-            if is_dt and val is not None:
-                struct[fields[j].column] = (
-                    val if isinstance(val, int) else _datetime_to_epoch_us(val)
-                )
+            internal_type = _get_field_internal_type(fields[j])
+            if val is None or isinstance(val, int):
+                struct[fields[j].column] = val
+            elif internal_type == "DateTimeField":
+                struct[fields[j].column] = _datetime_to_epoch_us(val)
+            elif internal_type == "TimeField":
+                struct[fields[j].column] = _time_to_micros(val)
             else:
                 struct[fields[j].column] = val
         result.append(struct)
