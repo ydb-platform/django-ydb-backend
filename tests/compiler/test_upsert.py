@@ -1,5 +1,7 @@
+from django.db import NotSupportedError
 from django.test import TransactionTestCase
 
+from .models import InventoryItem
 from .models import NFTToken
 
 
@@ -237,3 +239,51 @@ class NFTTokenUpsertTest(TransactionTestCase):
         self.assertEqual(results[1].token_id, "202")
         self.assertEqual(results[2].token_id, "404")
         self.assertEqual(results[3].token_id, "303")
+
+    def test_upsert_returns_instance(self):
+        result = NFTToken.objects.upsert(self.token1_data)
+        self.assertIsInstance(result, NFTToken)
+        self.assertEqual(result.token_id, "12345")
+
+    def test_empty_bulk_upsert_returns_empty(self):
+        self.assertEqual(NFTToken.objects.bulk_upsert([]), [])
+        self.assertEqual(NFTToken.objects.count(), 0)
+
+    def test_explicit_conflict_target_on_pk_is_ok(self):
+        NFTToken.objects.upsert(self.token1_data, conflict_target="token_id")
+        self.assertEqual(NFTToken.objects.count(), 1)
+        self.assertEqual(NFTToken.objects.get(token_id="12345").owner, "0xAlice123")
+
+    def test_unsupported_conflict_target_raises(self):
+        # YDB UPSERT is keyed on the primary key; a non-PK target must fail
+        # clearly rather than silently upserting by PK.
+        with self.assertRaises(NotSupportedError):
+            NFTToken.objects.upsert(self.token1_data, conflict_target="owner")
+
+
+class InventoryUpsertTest(TransactionTestCase):
+    def test_update_fields_skips_nullable_column(self):
+        InventoryItem.objects.upsert(
+            {"sku": "A1", "name": "Widget", "reorder_level": 3, "quantity": 5}
+        )
+
+        # Re-upsert writing only the NOT NULL columns, dropping the nullable
+        # reorder_level. YDB UPSERT preserves columns left out of the statement.
+        InventoryItem.objects.upsert(
+            {"sku": "A1", "name": "Widget v2", "quantity": 9},
+            update_fields=["name", "quantity"],
+        )
+
+        item = InventoryItem.objects.get(sku="A1")
+        self.assertEqual(item.name, "Widget v2")
+        self.assertEqual(item.quantity, 9)
+        self.assertEqual(item.reorder_level, 3)
+
+    def test_update_fields_omitting_not_null_column_raises(self):
+        # quantity is NOT NULL and YDB UPSERT requires it, so omitting it must
+        # fail clearly rather than leaking the raw YDB error.
+        with self.assertRaises(NotSupportedError):
+            InventoryItem.objects.upsert(
+                {"sku": "A2", "name": "X", "quantity": 1},
+                update_fields=["name"],
+            )

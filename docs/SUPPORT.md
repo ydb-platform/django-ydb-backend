@@ -215,20 +215,19 @@ Covered by `tests/django_contrib/test_smoke.py`; see [CONTRIB.md](CONTRIB.md).
 
 ## UPSERT
 
-**Contract decision: the supported public UPSERT is the native YDB
-`UPSERT INTO`** — atomic, race-free, keyed on the primary key. The user-facing
-API is `YDBManager`: set `objects = YDBManager()` on the model, then call
+The supported public UPSERT is the native YDB `UPSERT INTO` — a single atomic,
+race-free statement keyed on the primary key. The user-facing API is
+`YDBManager`: set `objects = YDBManager()` on the model, then call
 `Model.objects.upsert(obj)` / `bulk_upsert(objs)` (each accepts a model instance
 or a dict and returns the persisted instances).
 
-Wiring the native path is **release-blocking** and tracked in #46; the
-docs/examples in [OPERATIONS.md](OPERATIONS.md) follow in #47. **Until #46
-lands, the emulated path below is what actually ships.**
+| Aspect | Status | Notes |
+|--------|:------:|-------|
+| `YDBManager.upsert()` / `bulk_upsert()` | ✅ | Native `UPSERT INTO` via `SQLUpsertCompiler`. One statement (rows passed as a `List<Struct>` parameter), so no read-modify-write and no race window. Covered by `tests/compiler/test_upsert.py`. |
+| Conflict target | ✅ (PK only) | UPSERT is keyed on the primary key. `conflict_target` defaults to the PK; passing anything else raises `NotSupportedError`. |
+| `update_fields` (write a subset of columns) | 🟡 | Restricts the written columns; columns left out are preserved on existing rows. YDB requires **every NOT NULL column** to be present, so `update_fields` may only drop nullable columns — omitting a NOT NULL column raises `NotSupportedError`. |
 
-| Path | Status | Notes |
-|------|:------:|-------|
-| Native `UPSERT INTO` | ❌ today → ✅ target (#46) | The chosen supported path. `SQLUpsertCompiler` already emits `UPSERT INTO`, but the manager does not route to it yet (it gates on an undefined `can_return_upserted_objects` flag), so it is not reachable today. #46 wires it up and defines return behavior. Atomic and race-free once wired. |
-| `YDBManager` emulated path | 🟡 | What ships until #46: SELECT-then-INSERT/UPDATE inside `transaction.atomic()`, updating only changed fields. Default conflict target is `unique_together[0]` if set, else the PK. **Not race-free** (YDB enforces no uniqueness on non-PK targets) — reliable for single-writer use. Covered by `tests/compiler/test_upsert.py`. |
+> The docs/examples in [OPERATIONS.md](OPERATIONS.md) are rewritten separately in #47.
 
 ---
 
@@ -260,7 +259,7 @@ Proposed split for the first non-beta (issue #51 tracks readiness):
 - README/docs support claims match tested behavior (#50).
 - Version target named and packaging metadata aligned (Python `>=3.10`, Django `>=4.2,<7.0`). ✅
 - Transaction contract documented (#36, done).
-- Native `UPSERT INTO` wired up as the supported upsert path (#46).
+- Native `UPSERT INTO` wired up as the supported upsert path (#46). ✅
 - Pattern/exact lookup escaping returns the correct rows (#75) — currently
   produces **silently wrong results** for backslash/special characters, so it
   must be fixed before non-beta.
