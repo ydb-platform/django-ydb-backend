@@ -318,7 +318,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             return str(s)
 
         if params:
-            if isinstance(params, (list, tuple)):
+            if isinstance(params, list | tuple):
                 sql = sql % tuple(map(to_string, params))
             elif params and isinstance(params, dict):
                 formatted_sql = sql

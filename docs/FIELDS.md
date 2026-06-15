@@ -1,6 +1,9 @@
 Fields
 ===
 
+> See the [support contract](SUPPORT.md#fields) for the per-field support level
+> (supported / best-effort / unsupported). This page documents the type mapping.
+
 YDB backend support django builtin fields.
 
 ## Relationship fields

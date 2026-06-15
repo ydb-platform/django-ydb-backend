@@ -560,7 +560,7 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
         combinator_sql = self.connection.ops.set_operators[combinator]
         if all_ and combinator == "union":
             combinator_sql += " ALL"
-        sql_parts, params_parts = zip(*parts)
+        sql_parts, params_parts = zip(*parts, strict=False)
         result = [f" {combinator_sql} ".join(sql_parts)]
         params = []
         for part in params_parts:
@@ -646,7 +646,7 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         opts = self.query.get_meta()
         auto_pk = isinstance(
             opts.pk,
-            (models.AutoField, models.SmallAutoField, models.BigAutoField),
+            models.AutoField | models.SmallAutoField | models.BigAutoField,
         )
         if returning_fields is None and auto_pk:
             returning_fields = [opts.pk]

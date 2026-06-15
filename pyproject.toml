@@ -6,7 +6,7 @@ authors = [
     {name = "Yandex LLC", email = "ydb@yandex-team.ru"},
 ]
 readme = "README.md"
-requires-python = ">=3.9,<4"
+requires-python = ">=3.10,<4"
 dependencies = [
     "ydb-dbapi (>=0.1.8,<0.2.0)",
     "django (>=4.2,<7.0)"
@@ -37,7 +37,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv", "examples", "docs"]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 src = ["ydb_backend", "tests"]
 
 [tool.ruff.lint]

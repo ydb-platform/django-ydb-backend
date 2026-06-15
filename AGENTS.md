@@ -16,7 +16,7 @@
 
 ## Coding Style & Naming Conventions
 
-Use Python 3.9-compatible syntax and Ruff defaults from `pyproject.toml`: 88-character lines, single-line imports from Ruff isort, and four-space indentation. Keep public Django backend classes and methods aligned with Django naming conventions. Test files should follow `test_*.py`; model fixtures for a test area belong in that area’s `models.py`. Prefer explicit names for backend feature flags, compiler methods, and schema operations.
+Use Python 3.10-compatible syntax and Ruff defaults from `pyproject.toml`: 88-character lines, single-line imports from Ruff isort, and four-space indentation. Keep public Django backend classes and methods aligned with Django naming conventions. Test files should follow `test_*.py`; model fixtures for a test area belong in that area’s `models.py`. Prefer explicit names for backend feature flags, compiler methods, and schema operations.
 
 ## Testing Guidelines
 
