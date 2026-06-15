@@ -451,6 +451,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         Savepoint operations are not supported in YDB - empty stub for Django
         """
 
-    @staticmethod
-    def upsert_statement():
+    def upsert_statement(self, on_conflict=None):
+        # YDB's UPSERT INTO inserts missing rows and overwrites the listed
+        # columns of existing rows, keyed on the primary key. on_conflict is
+        # accepted for parity with insert_statement(); YDB has no conflict
+        # clause to emit.
         return "UPSERT INTO"

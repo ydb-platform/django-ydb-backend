@@ -128,3 +128,15 @@ class EventRecord(models.Model):
 
     def __str__(self):
         return f"{self.name} {self.occurred_at}"
+
+
+class InventoryItem(models.Model):
+    sku = models.CharField(max_length=20, primary_key=True)
+    name = models.CharField(max_length=100)
+    reorder_level = models.IntegerField(null=True)
+    quantity = models.IntegerField()
+
+    objects = YDBManager()
+
+    def __str__(self):
+        return f"{self.sku} {self.name} {self.reorder_level} {self.quantity}"
