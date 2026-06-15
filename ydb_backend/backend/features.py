@@ -232,9 +232,9 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "lookup.tests.LookupTests.test_exact_exists",
             "lookup.tests.LookupTests.test_nested_outerref_lhs",
         },
-        "Substr/SUBSTRING is unsupported on Utf8 columns (YQL SUBSTRING expects "
-        "String); see issue #87. Pattern/exact lookup string escaping is "
-        "otherwise fixed (#75).": {
+        "A pattern lookup over a nullable expression RHS builds an "
+        "Optional<Utf8> LIKE pattern that YQL rejects (see issue #91); the "
+        "RHS here is Substr() over the nullable Author.alias.": {
             "lookup.tests.LookupTests.test_pattern_lookups_with_substr",
         },
         "Lookups that coerce a value to a different field type (int-as-str, "
