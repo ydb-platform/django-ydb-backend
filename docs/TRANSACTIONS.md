@@ -1,6 +1,9 @@
 Transactions
 ===
 
+> See the [support contract](SUPPORT.md#transactions) for the at-a-glance
+> support matrix. This page explains the behavior in detail.
+
 The backend maps Django's transaction API onto YDB's interactive transactions.
 
 ## What is supported

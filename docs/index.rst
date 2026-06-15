@@ -6,11 +6,16 @@ Django database backend for `YDB <https://ydb.tech/>`_ — distributed SQL datab
 Features
 --------
 
-- Full Django ORM support for YDB
-- Support for all standard Django field types
-- Custom UPSERT operation via ``YDBManager``
+- Django ORM support for CRUD, relations, and the standard contrib apps
+- Support for most standard Django field types (see the support matrix)
+- Emulated UPSERT operation via ``YDBManager``
 - Migrations support with YDB-specific limitations
 - Multiple authentication methods
+
+What is supported, best-effort, unsupported, or not yet evaluated is defined in
+the :doc:`support contract <SUPPORT>` — the single source of truth, with
+compatibility matrices for fields, relations, constraints, indexes,
+transactions, migrations, ORM features, introspection, Admin/Auth, and UPSERT.
 
 Quick Start
 -----------
@@ -46,6 +51,7 @@ Documentation
    :maxdepth: 2
    :caption: Contents
 
+   SUPPORT
    CONFIGURATIONS
    FIELDS
    MIGRATIONS

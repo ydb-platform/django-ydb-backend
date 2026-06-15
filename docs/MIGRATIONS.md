@@ -1,6 +1,9 @@
 Migrations
 ===
 
+> See the [support contract](SUPPORT.md#migrations--schema-operations) for the
+> at-a-glance support matrix. This page explains the behavior in detail.
+
 YDB, as a distributed OLTP/OLAP system, has a number of architectural limitations that significantly affect the migration process. 
 Unlike traditional DBMS (PostgreSQL, MySQL), many YDB operations require a special approach or are not available at all.
 

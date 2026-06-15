@@ -1,6 +1,9 @@
 Django Admin, Auth, and contrib apps
 ===
 
+> See the [support contract](SUPPORT.md#admin-auth--contrib-apps) for the
+> at-a-glance support matrix. This page explains the behavior in detail.
+
 The standard Django contrib applications — `django.contrib.admin`,
 `django.contrib.auth`, `django.contrib.contenttypes`, and
 `django.contrib.sessions` — run on YDB **with documented limitations**. They

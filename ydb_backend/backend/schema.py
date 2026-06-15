@@ -87,7 +87,7 @@ def _default_literal(value) -> str:
     """
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return str(value)
     if isinstance(value, Enum):
         return _default_literal(value.value)

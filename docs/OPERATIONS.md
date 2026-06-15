@@ -1,6 +1,10 @@
 Operations
 ===
 
+> See the [support contract](SUPPORT.md#upsert) for the UPSERT support level and
+> the [ORM query features](SUPPORT.md#orm-query-features) matrix. The UPSERT
+> examples below are being revised (issue #47).
+
 The operations implement the Django ORM query compilation system in a YDB-specific syntax, taking into account the features of this distributed database.
 
 Features:
