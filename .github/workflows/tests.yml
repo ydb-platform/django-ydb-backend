@@ -103,13 +103,20 @@ jobs:
         run: poetry install
 
       - name: Override Django version
-        run: poetry run pip install "django~=${{ matrix.django-version }}"
+        id: django
+        run: |
+          poetry run pip install "django~=${{ matrix.django-version }}"
+          version="$(poetry run python -c 'import django; print(django.get_version())')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Django source tree
         uses: actions/cache@v4
         with:
           path: .django-src
-          key: conformance-django-${{ matrix.django-version }}
+          # Key on the exact resolved version (e.g. 6.0.6): caches are immutable
+          # per key, so a minor-version key would go stale after a patch release
+          # and reclone on every run without ever updating.
+          key: conformance-django-${{ steps.django.outputs.version }}
 
       - name: Start YDB
         run: docker compose up -d --wait
