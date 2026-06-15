@@ -150,14 +150,29 @@ _TEMPORAL_FIELD_TYPES = frozenset(
 )
 
 
+# Deliberately naive: used to map a naive (USE_TZ=False) datetime to epoch
+# microseconds as if it were UTC.
+_EPOCH = datetime(1970, 1, 1)  # noqa: DTZ001
+
+
 def _datetime_to_epoch_us(value):
     """
     Return a datetime as epoch microseconds for binding to a YDB Timestamp.
 
-    ``round`` keeps full microsecond precision (``int(value.timestamp())`` would
-    truncate to whole seconds). The value may be negative (before 1970): the
-    column is a signed Timestamp64, which accepts pre-epoch instants.
+    A naive datetime (``USE_TZ = False``) is treated as UTC so it round-trips
+    unchanged, instead of shifting by the system local timezone that
+    ``datetime.timestamp()`` applies to naive values. The arithmetic is exact
+    (timedelta components), keeping full microsecond precision. The value may be
+    negative (before 1970): the column is a signed Timestamp64, which accepts
+    pre-epoch instants.
     """
+    if value.tzinfo is None:
+        delta = value - _EPOCH
+        return (
+            delta.days * 86_400_000_000
+            + delta.seconds * 1_000_000
+            + delta.microseconds
+        )
     return int(round(value.timestamp() * 1_000_000))
 
 
@@ -569,36 +584,75 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
 
 
 class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
-    def _prepare_sql_statement(self, returning_columns=None):
-        qn = self.connection.ops.quote_name
+    def _split_fields(self):
+        # Separate the insert fields into plain-value fields, passed as the
+        # ``$in_`` List<Struct> parameter, and expression fields such as Now(),
+        # whose SQL is emitted inline in the SELECT. Returns
+        # (value_fields, expr_columns) with expr_columns a list of (field, sql).
+        #
+        # Classification is by the rendered placeholder: a plain value -- and a
+        # database default, which resolves to a single bound value -- renders
+        # as "%s"; an expression such as Now() renders as its inline SQL.
         opts = self.query.get_meta()
         fields = self.query.fields or [opts.pk]
+        obj = self.query.objs[0]
+
+        value_row = [
+            self.prepare_value(field, self.pre_save_val(field, obj))
+            for field in fields
+        ]
+        placeholders = self.assemble_as_sql(fields, [value_row])[0][0]
+
+        value_fields = []
+        expr_columns = []
+        for field, placeholder in zip(fields, placeholders, strict=True):
+            if placeholder == "%s":
+                value_fields.append(field)
+            elif "%s" in placeholder:
+                # An expression with bound parameters can't be carried by the
+                # AS_TABLE($in_) row parameter nor inlined safely.
+                msg = (
+                    "Inserting a column from an expression with bound "
+                    "parameters is not supported on YDB."
+                )
+                raise NotSupportedError(msg)
+            else:
+                expr_columns.append((field, placeholder))
+        return value_fields, expr_columns
+
+    def _prepare_sql_statement(self, returning_columns, value_fields, expr_columns):
+        qn = self.connection.ops.quote_name
+        opts = self.query.get_meta()
 
         field_types = []
-        for f in fields:
+        for f in value_fields:
             yql_type = self.connection.introspection.get_yql_type(
                 _get_field_internal_type(f)
             )
             if getattr(f, "null", False):
                 yql_type = f"Optional<{yql_type}>"
             field_types.append(f"{qn(f.column)}: {yql_type}")
-        in_ = f"{', '.join(field_types)}"
 
-        select = (
-            f"SELECT {', '.join(qn(f.column) for f in fields)} FROM AS_TABLE($in_)"
-        )
+        # Plain columns are read from the input rows; expression columns (e.g.
+        # Now()) are evaluated inline for each row.
+        select_columns = [qn(f.column) for f in value_fields]
+        select_columns += [f"{sql} AS {qn(f.column)}" for f, sql in expr_columns]
+        insert_columns = [qn(f.column) for f in value_fields]
+        insert_columns += [qn(f.column) for f, _ in expr_columns]
+
+        select = f"SELECT {', '.join(select_columns)} FROM AS_TABLE($in_)"
         if returning_columns:
             # YDB returns database-generated keys (Serial) in input row order.
             select += f" RETURNING {', '.join(qn(c) for c in returning_columns)}"
 
         return [
-            f"DECLARE $in_ as List<Struct<{in_}>>;",
+            f"DECLARE $in_ as List<Struct<{', '.join(field_types)}>>;",
             f"{self._get_statement()} {qn(opts.db_table)}",
-            f"({', '.join(qn(f.column) for f in fields)})",
+            f"({', '.join(insert_columns)})",
             f"{select};",
         ]
 
-    def _prepare_params(self):
+    def _prepare_params(self, value_fields):
         opts = self.query.get_meta()
 
         if not self.query.fields:
@@ -617,20 +671,19 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
             )
             raise NotSupportedError(error_message)
 
-        fields = self.query.fields
         value_rows = [
             [
                 self.prepare_value(field, self.pre_save_val(field, obj))
-                for field in fields
+                for field in value_fields
             ]
             for obj in self.query.objs
         ]
 
-        _, param_rows = self.assemble_as_sql(fields, value_rows)
+        _, param_rows = self.assemble_as_sql(value_fields, value_rows)
         return {
             "$in_": (
-                _get_data(fields, param_rows),
-                _get_data_type(fields)
+                _get_data(value_fields, param_rows),
+                _get_data_type(value_fields)
             )
         }
 
@@ -638,8 +691,11 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
         raise NotImplementedError("Subclasses must implement this method")
 
     def as_sql(self, returning_columns=None):
-        sql = self._prepare_sql_statement(returning_columns)
-        params = self._prepare_params()
+        value_fields, expr_columns = self._split_fields()
+        sql = self._prepare_sql_statement(
+            returning_columns, value_fields, expr_columns
+        )
+        params = self._prepare_params(value_fields)
         return [(" ".join(sql), params)]
 
     def execute_sql(self, returning_fields=None):
@@ -671,9 +727,14 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
             if use_returning:
                 rows = [tuple(row) for row in returned]
             else:
-                # The PK is already known; echo it back from the inserted rows.
+                # The PK is already known; echo it back. For an auto field the
+                # value supplied may be a different type than the column stores
+                # (e.g. an integer PK created with a string), so coerce it to
+                # the field's Python type as a database read would.
+                coerce = opts.pk.to_python if auto_pk else (lambda value: value)
                 rows = [
-                    (self.pre_save_val(opts.pk, obj),) for obj in self.query.objs
+                    (coerce(self.pre_save_val(opts.pk, obj)),)
+                    for obj in self.query.objs
                 ]
 
             cols = [field.get_col(opts.db_table) for field in returning_fields]
