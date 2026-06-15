@@ -268,6 +268,16 @@ class DatabaseOperations(BaseDatabaseOperations):
         msg = f"Lookup '{lookup_type}' is not supported."
         raise NotImplementedError(msg)
 
+    def prep_for_like_query(self, x):
+        """Escape LIKE/ILIKE wildcards, using '~' as the ESCAPE character.
+
+        YQL rejects the SQL-default '\\' (and '%'/'_') in the ESCAPE clause, so
+        the backslash-based default cannot be used here. The escape character
+        itself is escaped first; this matches ``ESCAPE '~'`` in
+        ``DatabaseWrapper.operators`` and ``pattern_ops``.
+        """
+        return str(x).replace("~", "~~").replace("%", "~%").replace("_", "~_")
+
     # TODO: try to understand what is the param 'style'.
     def sql_flush_table(self, style, table):
         """

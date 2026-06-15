@@ -169,7 +169,7 @@ operation: it either raises `NotSupportedError` or skips with a warning.
 |---------|:------:|-------|
 | CRUD (`create`/`get`/`filter`/`update`/`delete`) | ✅ | |
 | Most field lookups | ✅ | `exact`, `in`, ranges, `icontains`, date-extract (`week_day`/`week`/`quarter`/...), etc. |
-| Backslash / special-char escaping in pattern & exact lookups | ❌ | Incorrect results (issue #75). |
+| Backslash / `%` / `_` escaping in pattern & exact lookups | ✅ | Escaped correctly via `ESCAPE '~'` (issue #75). `Substr()` on a text column is still unsupported (#87). |
 | Coercing lookups (`int`-as-`str`, `date`-as-`str`), regex on NULL/non-string | ❌ | Raise during parameter handling. |
 | Correlated subqueries (`Exists`/`Subquery`/`OuterRef` as LHS) | ❌ | YDB cannot resolve the outer reference (issue #77). Non-correlated subqueries work. |
 | Aggregation / annotation | 🟡 | GROUP BY validation fixed (#76); tail remains: `ORDER BY` aggregated values, `GROUP BY` constant, `PI()`/`Random()`/`CURRENT_TIMESTAMP` (issue #80). |
@@ -260,9 +260,8 @@ Proposed split for the first non-beta (issue #51 tracks readiness):
 - Version target named and packaging metadata aligned (Python `>=3.10`, Django `>=4.2,<7.0`). ✅
 - Transaction contract documented (#36, done).
 - Native `UPSERT INTO` wired up as the supported upsert path (#46). ✅
-- Pattern/exact lookup escaping returns the correct rows (#75) — currently
-  produces **silently wrong results** for backslash/special characters, so it
-  must be fixed before non-beta.
+- Pattern/exact lookup escaping returns the correct rows (#75). ✅ Fixed —
+  backslash, `%` and `_` are escaped with `ESCAPE '~'`.
 
 **Non-blocking (documented limitations, can ship as known gaps):**
 - Naive datetime shift under `USE_TZ=False` (#78) — production default unaffected.

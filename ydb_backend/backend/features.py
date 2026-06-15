@@ -241,9 +241,9 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "lookup.tests.LookupTests.test_exact_exists",
             "lookup.tests.LookupTests.test_nested_outerref_lhs",
         },
-        "String escaping for backslashes/special characters in pattern and "
-        "exact lookups is incorrect (YQL token recognition error / wrong rows).": {
-            "lookup.tests.LookupTests.test_escaping",
+        "Substr/SUBSTRING is unsupported on Utf8 columns (YQL SUBSTRING expects "
+        "String); see issue #87. Pattern/exact lookup string escaping is "
+        "otherwise fixed (#75).": {
             "lookup.tests.LookupTests.test_pattern_lookups_with_substr",
         },
         "Lookups that coerce a value to a different field type (int-as-str, "

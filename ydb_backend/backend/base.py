@@ -77,19 +77,22 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BinaryField": "String",
     }
 
+    # YDB's LIKE/ILIKE use '~' as the ESCAPE character: YQL rejects the SQL
+    # default '\' (and '%'/'_') in the ESCAPE clause. The escaped values are
+    # produced by DatabaseOperations.prep_for_like_query.
     operators = {
         "exact": "= %s",
         "iexact": "REGEXP '(?i)(' || %s || ')$'",
-        "contains": "LIKE %s",
-        "icontains": "ILIKE %s",
+        "contains": "LIKE %s ESCAPE '~'",
+        "icontains": "ILIKE %s ESCAPE '~'",
         "gt": "> %s",
         "gte": ">= %s",
         "lt": "< %s",
         "lte": "<= %s",
-        "startswith": "LIKE %s",
-        "endswith": "LIKE %s",
-        "istartswith": "ILIKE %s",
-        "iendswith": "ILIKE %s",
+        "startswith": "LIKE %s ESCAPE '~'",
+        "endswith": "LIKE %s ESCAPE '~'",
+        "istartswith": "ILIKE %s ESCAPE '~'",
+        "iendswith": "ILIKE %s ESCAPE '~'",
         "and": "AND",
         "or": "OR",
         "in": "IN (%s)",
@@ -99,24 +102,30 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "iregex": "REGEXP '(?i)' || %s",
     }
 
-    # The patterns below are used to generate SQL pattern lookup clauses when
-    # the right-hand side of the lookup isn't a raw string (it might be an expression
-    # or the result of a bilateral transformation).
-    # In those cases, special characters for LIKE operators (e.g. \, *, _) should be
-    # escaped on database side.
-    #
-    # Note: we use str.format() here for readability as '%' is used as a wildcard for
-    # the LIKE operator.
+    # Used when the right-hand side of a pattern lookup is an expression (e.g.
+    # a column reference or a transform such as Substr) rather than a plain
+    # value. Django fills pattern_esc into pattern_ops and the expression into
+    # pattern_esc via str.format(); '%%' survives the final '%'-formatting in
+    # Lookup.as_sql as a single '%' wildcard. YDB has no SQL REPLACE(), so the
+    # special characters ('~', '%', '_') are escaped with String::ReplaceAll,
+    # consistently with prep_for_like_query and ESCAPE '~'.
+    # Unicode::ReplaceAll operates on Utf8 (String::ReplaceAll is String-only
+    # and rejects a Utf8 expression). The Utf8 (``u``) literals keep ``||`` and
+    # the left-hand Utf8 column/expression on the same operand type. A single
+    # ``%`` is used (not the SQL-standard doubled ``%%``): this backend resolves
+    # parameters by name and never ``%``-formats the assembled query, so ``%%``
+    # would reach YDB doubled and break the literal-percent escaping.
     pattern_esc = (
-        r"REPLACE(REPLACE(REPLACE({}, E'\\', E'\\\\'), E'%%', E'\\%%'), E'_', E'\\_')"
+        "Unicode::ReplaceAll(Unicode::ReplaceAll(Unicode::ReplaceAll("
+        "{}, '~'u, '~~'u), '%'u, '~%'u), '_'u, '~_'u)"
     )
     pattern_ops = {
-        "contains": "LIKE '%%%s%%' ESCAPE '\\'",
-        "icontains": "ILIKE '%%%s%%' ESCAPE '\\'",
-        "startswith": "LIKE '%s%%' ESCAPE '\\'",
-        "istartswith": "ILIKE '%s%%' ESCAPE '\\'",
-        "endswith": "LIKE '%%%s' ESCAPE '\\'",
-        "iendswith": "ILIKE '%%%s' ESCAPE '\\'",
+        "contains": "LIKE '%'u || {} || '%'u ESCAPE '~'",
+        "icontains": "ILIKE '%'u || {} || '%'u ESCAPE '~'",
+        "startswith": "LIKE {} || '%'u ESCAPE '~'",
+        "istartswith": "ILIKE {} || '%'u ESCAPE '~'",
+        "endswith": "LIKE '%'u || {} ESCAPE '~'",
+        "iendswith": "ILIKE '%'u || {} ESCAPE '~'",
     }
 
     Database = Database
