@@ -2,6 +2,19 @@ import datetime
 import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
+from django.db.models.functions import Now
+
+
+def _now_as_ydb(self, compiler, connection, **extra_context):
+    # YQL has no CURRENT_TIMESTAMP literal (Now's default template); use the
+    # CurrentUtcTimestamp() built-in. Dispatched via Func.as_<vendor>, so this
+    # only affects the YDB backend.
+    return self.as_sql(
+        compiler, connection, template="CurrentUtcTimestamp()", **extra_context
+    )
+
+
+Now.as_ydb = _now_as_ydb
 
 DATE_PARAMS_EXTRACT = [
     "year",

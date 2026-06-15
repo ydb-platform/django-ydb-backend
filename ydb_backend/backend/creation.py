@@ -1,6 +1,7 @@
 import os
 from abc import ABC
 
+import django
 import ydb
 from django.conf import settings
 from django.db.backends.base.creation import BaseDatabaseCreation
@@ -77,6 +78,14 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
         self._old_ydb_table_path_prefix = self.connection.settings_dict.get(
             "OPTIONS", {}
         ).get("ydb_table_path_prefix")
+        # Django 6.0 deprecated the ``serialize`` argument to create_test_db()
+        # (serialization moved to serialize_test_db()); passing it raises
+        # RemovedInDjango70Warning, which the bundled test runner escalates to
+        # an error. Only forward it on versions that still accept it.
+        if django.VERSION >= (6, 0):
+            return super().create_test_db(
+                verbosity=verbosity, autoclobber=autoclobber, keepdb=keepdb
+            )
         return super().create_test_db(verbosity, autoclobber, serialize, keepdb)
 
     def _execute_create_test_db(self, cursor, parameters, keepdb=False):

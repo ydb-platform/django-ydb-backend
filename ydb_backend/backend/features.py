@@ -209,15 +209,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # inert for this project's own test suite because the guarded test apps are
     # not in its INSTALLED_APPS.
     django_test_skips = {
-        "Naive datetimes are converted through the server/Django timezone "
-        "under USE_TZ=False, so values shift instead of round-tripping. "
-        "Microsecond precision is preserved; the timezone handling is the gap.": {
-            "basic.tests.ModelInstanceCreationTests."
-            "test_for_datetimefields_saves_as_much_precision_as_was_given",
-            "basic.tests.ModelTest.test_microsecond_precision",
-            "basic.tests.ModelRefreshTests.test_refresh",
-            "basic.tests.ModelRefreshTests.test_refresh_unsaved",
-        },
         "Saving a model whose primary key has a database default issues a "
         "different number of queries on YDB (INSERT ... RETURNING).": {
             "basic.tests.ModelInstanceCreationTests."
