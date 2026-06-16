@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from datetime import datetime
 from datetime import time
@@ -121,6 +122,28 @@ def _replace_placeholders(sql):
         counter += 1
 
     return sql, placeholder_rows
+
+
+# String literals may carry a YQL type suffix, e.g. ``'x'u`` (Utf8).
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'[a-zA-Z]*")
+
+
+def _is_constant_sql(sql):
+    """
+    Whether a GROUP BY / ORDER BY term references no row data and is constant.
+
+    Real columns are backtick-quoted and ``.extra()`` raw SQL references columns
+    via bare identifiers, so a term with neither a backtick nor (after string
+    literals and ``%s`` parameter placeholders are stripped) an identifier is a
+    pure literal such as ``(1)`` or a bound-parameter expression such as
+    ``(%s * %s)``. YQL rejects GROUP BY / ORDER BY on a constant expression
+    (issues #80, #77), and a constant neither partitions nor orders rows, so such
+    terms are dropped.
+    """
+    if "`" in sql:
+        return False
+    stripped = _STRING_LITERAL.sub("", sql).replace("%s", "")
+    return not re.search(r"[A-Za-z_]", stripped)
 
 
 def _infer_ydb_type(value):
@@ -496,11 +519,9 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
 
                 grouping = []
                 for g_sql, g_params in group_by:
-                    # YQL rejects "GROUP BY <constant>" (issue #80). A grouping
-                    # term with no column reference (column names are
-                    # backtick-quoted) is constant -- the same value for every
-                    # row -- so it does not partition the result and is dropped.
-                    if "`" not in g_sql:
+                    # YQL rejects "GROUP BY <constant>" (issue #80); a constant
+                    # does not partition the result, so drop it.
+                    if _is_constant_sql(g_sql):
                         continue
                     grouping.append(g_sql)
                     params.extend(g_params)
@@ -533,14 +554,21 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
             if order_by:
                 ordering = []
                 for _, (o_sql, o_params, _) in order_by:
+                    # YQL rejects "ORDER BY <constant>" (e.g. a constant
+                    # .extra() select); a constant does not order rows, so drop
+                    # it. Strip the trailing direction before the check.
+                    base = self.ordering_parts.search(o_sql)
+                    if _is_constant_sql(base[1] if base else o_sql):
+                        continue
                     ordering.append(o_sql)
                     params.extend(o_params)
                     param_types += [None] * len(o_params)
-                order_by_sql = f"ORDER BY {', '.join(ordering)}"
-                if combinator and features.requires_compound_order_by_subquery:
-                    result = ["SELECT * FROM (", *result, ")", order_by_sql]
-                else:
-                    result.append(order_by_sql)
+                if ordering:
+                    order_by_sql = f"ORDER BY {', '.join(ordering)}"
+                    if combinator and features.requires_compound_order_by_subquery:
+                        result = ["SELECT * FROM (", *result, ")", order_by_sql]
+                    else:
+                        result.append(order_by_sql)
 
             if with_limit_offset:
                 result.append(

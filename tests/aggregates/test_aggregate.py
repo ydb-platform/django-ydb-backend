@@ -537,3 +537,15 @@ class TestAggregateCompilerGaps(TransactionTestCase):
             [(r["make"], r["n"]) for r in rows],
             [("Honda", 1), ("Toyota", 2)],
         )
+
+    def test_order_by_drops_constant(self):
+        # An .extra() constant select used in order_by emits "ORDER BY (1)",
+        # which YQL rejects ("Unable to ORDER BY constant expression"); the
+        # constant term is dropped while the column term still orders the rows.
+        ids = list(
+            Car.objects.extra(select={"vplus": "max_speed+1", "cnst": "1"})
+            .order_by("cnst", "vplus")
+            .values_list("id", flat=True)
+        )
+        # Ordered by max_speed: Corolla (190), Camry (200), Civic (210).
+        self.assertEqual(ids, [2, 1, 3])
