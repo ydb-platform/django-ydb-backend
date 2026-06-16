@@ -4,6 +4,10 @@ from datetime import timedelta
 from datetime import timezone as stdlib_timezone
 
 from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDay
+from django.db.models.functions import TruncHour
+from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncYear
 from django.test import SimpleTestCase
 from django.utils import timezone
 
@@ -196,6 +200,71 @@ class TimeFieldsTest(SimpleTestCase):
             date_only=TruncDate("datetime_field")
         ).get(date_field=date(2010, 2, 17))
         self.assertEqual(obj.date_only, date(2016, 12, 5))
+
+    def test_date_field_truncate(self):
+        # Exercises date_trunc_sql (DateField -> MakeDate). StartOf* returns a
+        # Resource the driver cannot read, so the result must be materialised
+        # back to a Date (issue #93).
+        TimeModel.objects.all().delete()
+        TimeModel.objects.create(
+            date_field=date(1980, 4, 23),
+            datetime_field=datetime(1980, 4, 23, 9, 30, tzinfo=stdlib_timezone.utc),
+            duration_field=timedelta(days=1),
+        )
+        obj = TimeModel.objects.annotate(
+            d_year=TruncYear("date_field"),
+            d_month=TruncMonth("date_field"),
+            d_day=TruncDay("date_field"),
+        ).get()
+        self.assertEqual(obj.d_year, date(1980, 1, 1))
+        self.assertEqual(obj.d_month, date(1980, 4, 1))
+        self.assertEqual(obj.d_day, date(1980, 4, 23))
+
+    def test_dates_distinct(self):
+        # QuerySet.dates() builds SELECT DISTINCT <truncated date> ORDER BY the
+        # alias. Regression for issue #93: before the fix the ORDER BY term
+        # re-referenced the base column the DISTINCT projection had dropped.
+        TimeModel.objects.all().delete()
+        for d in (date(1980, 4, 23), date(1980, 4, 23), date(2005, 7, 27)):
+            TimeModel.objects.create(
+                date_field=d,
+                datetime_field=datetime(
+                    d.year, d.month, d.day, tzinfo=stdlib_timezone.utc
+                ),
+                duration_field=timedelta(days=1),
+            )
+        self.assertEqual(
+            list(TimeModel.objects.dates("date_field", "day")),
+            [date(1980, 4, 23), date(2005, 7, 27)],
+        )
+        self.assertEqual(
+            list(TimeModel.objects.dates("date_field", "month")),
+            [date(1980, 4, 1), date(2005, 7, 1)],
+        )
+
+    def test_datetime_field_truncate_units(self):
+        # Exercises datetime_trunc_sql (DateTimeField -> MakeTimestamp).
+        # Truncation happens in the active timezone; pin it to UTC for a
+        # deterministic result.
+        TimeModel.objects.all().delete()
+        TimeModel.objects.create(
+            date_field=date(2016, 12, 5),
+            datetime_field=datetime(
+                2016, 12, 5, 14, 30, 15, tzinfo=stdlib_timezone.utc
+            ),
+            duration_field=timedelta(days=1),
+        )
+        with timezone.override(stdlib_timezone.utc):
+            obj = TimeModel.objects.annotate(
+                t_month=TruncMonth("datetime_field"),
+                t_hour=TruncHour("datetime_field"),
+            ).get()
+        self.assertEqual(
+            obj.t_month, datetime(2016, 12, 1, tzinfo=stdlib_timezone.utc)
+        )
+        self.assertEqual(
+            obj.t_hour, datetime(2016, 12, 5, 14, 0, tzinfo=stdlib_timezone.utc)
+        )
 
     def test_field_components(self):
         TimeModel.objects.create(

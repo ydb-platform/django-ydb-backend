@@ -312,6 +312,15 @@ def _get_data_type(fields):
 class SQLCompiler(_ParamTypingMixin, SQLCompiler):
     def get_order_by(self):
         result = super().get_order_by()
+        # Under SELECT DISTINCT, YQL resolves ORDER BY against the projected
+        # output columns only. Map each selected column's SQL to its alias so an
+        # order-by term that re-emits a select expression can reference that
+        # alias instead of a base column the projection has dropped (issue #93).
+        distinct_aliases = {}
+        if self.query.distinct and not self.query.distinct_fields:
+            for _, (s_sql, _), s_alias in self.select:
+                if s_alias:
+                    distinct_aliases.setdefault(s_sql, s_alias)
         # YDB rejects "ORDER BY N" (ordinal position reference, a Django 5.x
         # optimisation via PositionRef). Re-compile affected entries with the
         # underlying source expression so the actual column name is emitted.
@@ -329,7 +338,25 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
                 entry_sql, entry_params = self.compile(new_resolved)
             else:
                 entry_sql, entry_params = o_sql, o_params
-            fixed.append((resolved, (entry_sql, entry_params, is_ref)))
+            entry_is_ref = is_ref
+            if distinct_aliases:
+                # Strip the trailing direction (ASC/DESC) to match the bare
+                # select SQL. The keys are full select expressions, so a plain
+                # alias reference (already safe under DISTINCT) never matches;
+                # only a re-emitted expression -- whether a non-ref term or a
+                # PositionRef expanded just above -- is rewritten to its alias.
+                # Drop the now-duplicated params (bound by the select column)
+                # and mark the entry as a reference so get_extra_select() does
+                # not re-add the alias as an extra projected column.
+                match = self.ordering_parts.search(entry_sql)
+                base = match[1] if match else entry_sql
+                alias = distinct_aliases.get(base)
+                if alias:
+                    direction = entry_sql[len(base):]
+                    entry_sql = f"{self.connection.ops.quote_name(alias)}{direction}"
+                    entry_params = []
+                    entry_is_ref = True
+            fixed.append((resolved, (entry_sql, entry_params, entry_is_ref)))
         return fixed
 
     def as_sql(self, with_limits=True, with_col_aliases=False):
@@ -825,8 +852,15 @@ class SQLDeleteCompiler(_ParamTypingMixin, compiler.SQLDeleteCompiler):
         outerq = Query(self.query.model)
         if not self.connection.features.update_can_self_select:
             # Force the materialization of the inner query to allow reference
-            # to the target table on MySQL.
-            sql, params = innerq.get_compiler(connection=self.connection).as_sql()
+            # to the target table. Compile it in subquery mode so it yields
+            # ``%s`` placeholders with a positional ``_TypedParam`` list rather
+            # than SQL with baked-in ``$element_N`` names and a params dict:
+            # the enclosing DELETE names every placeholder once. Otherwise the
+            # inner ``$element_N`` is emitted into the final SQL but never
+            # declared ("Unknown name: $element_1", issue #94).
+            inner_compiler = innerq.get_compiler(connection=self.connection)
+            inner_compiler.query.subquery = True
+            sql, params = inner_compiler.as_sql()
             innerq = RawSQL(f"SELECT * FROM ({sql}) subquery", params) # noqa: S611
         outerq.add_filter("pk__in", innerq)
         return self._as_sql(outerq)

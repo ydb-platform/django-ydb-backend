@@ -111,20 +111,26 @@ def _common_dt_dttm_extract_funcs(lookup_type, sql, params):
     raise ValueError(msg)
 
 
+# StartOf* family by Django truncation lookup type. Each operates on a narrow
+# Date/Datetime/Timestamp and yields a Resource<DateTime2.TM> "split" value, so
+# every caller must materialise the result back with a Make* function.
+_START_OF_FUNCS = {
+    "year": "StartOfYear",
+    "quarter": "StartOfQuarter",
+    "month": "StartOfMonth",
+    "week": "StartOfWeek",
+    "day": "StartOfDay",
+}
+
+
 # common code for methods date_trunc_sql and datetime_trunc_sql
-def _common_dt_dttm_trunc_funcs(lookup_type, sql, params):
-    if lookup_type == "year":
-        return f"DateTime::StartOfYear({sql})", params
-    if lookup_type == "quarter":
-        return f"DateTime::StartOfQuarter({sql})", params
-    if lookup_type == "month":
-        return f"Datetime::StartOfMonth({sql})", params
-    if lookup_type == "week":
-        return f"Datetime::StartOfWeek({sql})", params
-    if lookup_type == "day":
-        return f"Datetime::StartOfDay({sql})", params
-    msg = f"Unsupported lookup type: {lookup_type}"
-    raise ValueError(msg)
+def _start_of_sql(lookup_type, sql):
+    try:
+        func = _START_OF_FUNCS[lookup_type]
+    except KeyError:
+        msg = f"Unsupported lookup type: {lookup_type}"
+        raise ValueError(msg) from None
+    return f"DateTime::{func}({sql})"
 
 
 def _add_tzname(sql, tzname):
@@ -200,15 +206,20 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         """
-        iven a lookup_type of 'year', 'month', or 'day', return the SQL that
-        truncates the given date or datetime field field_name to a date object
-        with only the given specificity.
+        Given a lookup_type of 'year', 'quarter', 'month', 'week', or 'day',
+        return the SQL that truncates the given date or datetime field
+        field_name to a date object with only the given specificity.
 
         If `tzname` is provided, the given value is truncated in a specific
         timezone.
         """
-        sql = _add_tzname(sql, tzname)
-        return _common_dt_dttm_trunc_funcs(lookup_type, sql, params)
+        # StartOf* reject the wide Date32 the backend stores dates in and return
+        # a Resource the driver cannot read, so narrow the column to Date,
+        # truncate, then materialise the result back to a Date with MakeDate.
+        # Narrow Date spans 1970-2105; truncating dates outside that range is
+        # unsupported.
+        sql = _add_tzname(f"CAST({sql} AS Date)", tzname)
+        return f"DateTime::MakeDate({_start_of_sql(lookup_type, sql)})", params
 
     def datetime_cast_date_sql(self, sql, params, tzname):
         """
@@ -255,25 +266,32 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
         """
-        Given a lookup_type of 'year', 'month', 'day', 'hour', 'minute', or
-        'second', return the SQL that truncates the given datetime field
-        field_name to a datetime object with only the given specificity.
+        Given a lookup_type of 'year', 'quarter', 'month', 'week', 'day',
+        'hour', 'minute', or 'second', return the SQL that truncates the given
+        datetime field field_name to a datetime object with only the given
+        specificity.
         """
-        sql = _add_tzname(sql, tzname)
+        # As in date_trunc_sql, narrow the wide Timestamp64 the backend stores
+        # datetimes in to Timestamp before AddTimezone/StartOf, then materialise
+        # the Resource result back with MakeTimestamp. Narrow Timestamp spans
+        # 1970-2105.
+        sql = _add_tzname(f"CAST({sql} AS Timestamp)", tzname)
 
         if lookup_type in DATE_PARAMS_TRUNC:
-            return _common_dt_dttm_trunc_funcs(lookup_type, sql, params)
-        if lookup_type == "hour":
-            return f"DateTime::StartOf(({sql}), Interval('PT1H'))", params
-        if lookup_type == "minute":
-            return f"DateTime::StartOf(({sql}), Interval('PT1M'))", params
-        if lookup_type == "second":
-            return f"DateTime::StartOf(({sql}), Interval('PT1S'))", params
-        if lookup_type == "millisecond":
-            return f"DateTime::StartOf(({sql}), Interval('PT01S'))", params
+            inner = _start_of_sql(lookup_type, sql)
+        else:
+            interval = {
+                "hour": "PT1H",
+                "minute": "PT1M",
+                "second": "PT1S",
+                "millisecond": "PT01S",
+            }.get(lookup_type)
+            if interval is None:
+                msg = f"Unsupported lookup type: {lookup_type}"
+                raise ValueError(msg)
+            inner = f"DateTime::StartOf(({sql}), Interval('{interval}'))"
 
-        msg = f"Unsupported lookup type: {lookup_type}"
-        raise ValueError(msg)
+        return f"DateTime::MakeTimestamp({inner})", params
 
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
         """
