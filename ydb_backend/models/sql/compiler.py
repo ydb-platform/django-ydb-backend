@@ -139,10 +139,13 @@ def _is_constant_sql(sql):
     ``(%s * %s)``. YQL rejects GROUP BY / ORDER BY on a constant expression
     (issues #80, #77), and a constant neither partitions nor orders rows, so such
     terms are dropped.
+
+    String literals are stripped first so a backtick inside one (e.g. ``'a`b'``)
+    is not mistaken for a column reference.
     """
-    if "`" in sql:
-        return False
     stripped = _STRING_LITERAL.sub("", sql).replace("%s", "")
+    if "`" in stripped:
+        return False
     return not re.search(r"[A-Za-z_]", stripped)
 
 
