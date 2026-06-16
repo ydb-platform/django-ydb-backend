@@ -81,6 +81,14 @@ class TimeModel(models.Model):
         )
 
 
+class AlarmModel(models.Model):
+    desc = models.CharField(max_length=100)
+    time = models.TimeField()
+
+    def __str__(self):
+        return f"{self.desc} {self.time}"
+
+
 class TextRelatedModel(models.Model):
     char_field = models.CharField(max_length=255)
     text_field = models.TextField()
