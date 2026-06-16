@@ -5,6 +5,7 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.functions import Now
 from django.db.models.functions import Pi
 from django.db.models.functions import Substr
+from django.db.models.lookups import PatternLookup
 
 
 def _now_as_ydb(self, compiler, connection, **extra_context):
@@ -48,6 +49,44 @@ def _pi_as_ydb(self, compiler, connection, **extra_context):
 
 
 Pi.as_ydb = _pi_as_ydb
+
+
+_pattern_lookup_as_sql = PatternLookup.as_sql
+
+
+def _pattern_lookup_as_sql_ydb(self, compiler, connection):
+    # A pattern lookup (contains/startswith/endswith and the i* variants) whose
+    # right-hand side is an expression -- a column reference or a transform such
+    # as Substr -- over a nullable column builds an Optional<Utf8> LIKE pattern
+    # that YQL's LIKE rejects ("String != Optional<Utf8>", issue #91). pattern_esc
+    # COALESCEs the expression to a non-optional Utf8 so the pattern type-checks,
+    # but that turns a NULL right-hand side into an empty (match-everything)
+    # pattern, so a trailing "rhs IS NOT NULL" guard excludes those rows instead.
+    #
+    # The right-hand side is emitted twice (the pattern and the guard); compiling
+    # it through the compiler each time keeps its parameters and the per-parameter
+    # type capture aligned. Anything but this case defers to Django's
+    # implementation.
+    if (
+        connection.vendor != "ydb"
+        or self.lookup_name not in connection.pattern_ops
+        or not (hasattr(self.rhs, "as_sql") or self.bilateral_transforms)
+    ):
+        return _pattern_lookup_as_sql(self, compiler, connection)
+    lhs_sql, params = self.process_lhs(compiler, connection)
+    rhs_sql, rhs_params = self.process_rhs(compiler, connection)
+    rhs_op = connection.pattern_ops[self.lookup_name].format(
+        connection.pattern_esc
+    ).format(rhs_sql)
+    # process_rhs again for the guard so a bilateral transform (where self.rhs is
+    # a value, not an expression) is handled the same way; it does not mutate
+    # params on this path.
+    guard_sql, guard_params = self.process_rhs(compiler, connection)
+    sql = f"({lhs_sql} {rhs_op} AND ({guard_sql}) IS NOT NULL)"
+    return sql, [*params, *rhs_params, *guard_params]
+
+
+PatternLookup.as_sql = _pattern_lookup_as_sql_ydb
 
 DATE_PARAMS_EXTRACT = [
     "year",

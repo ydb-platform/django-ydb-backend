@@ -8,6 +8,9 @@ class Book(models.Model):
     author = models.TextField(max_length=255)
     isbn = models.CharField(max_length=13, primary_key=True)
     price = models.IntegerField()
+    # Nullable so a pattern lookup with an expression RHS over it produces an
+    # Optional<Utf8> pattern (issue #91); mirrors Django's own Author.alias.
+    alias = models.TextField(null=True)  # noqa: DJ001
 
     def __str__(self):
         return (

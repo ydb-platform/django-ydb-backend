@@ -116,3 +116,46 @@ class SubstrTest(TransactionTestCase):
         self.assertCountEqual(
             Book.objects.filter(title__endswith=Substr("author", 1, 3)), [b]
         )
+
+
+class PatternLookupNullableExpressionTest(TransactionTestCase):
+    """An expression RHS over a nullable column (issue #91).
+
+    The LIKE pattern is then ``Optional<Utf8>``, which YQL rejects; pattern_esc
+    COALESCEs it to a non-optional Utf8 and a guard ensures a NULL right-hand
+    side excludes the row rather than matching every row (empty pattern).
+    """
+
+    def test_substr_over_nullable_column(self):
+        a = Book.objects.create(
+            isbn="50", title="John Smith", author="x", alias="Johx", price=1
+        )
+        b = Book.objects.create(
+            isbn="51", title="Rhonda Simpson", author="x", alias="sonx", price=1
+        )
+        # alias is NULL: Substr(alias, 1, 3) is NULL and must match nothing, not
+        # collapse to an empty pattern that matches every row.
+        Book.objects.create(
+            isbn="52", title="anything", author="x", alias=None, price=1
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__startswith=Substr("alias", 1, 3)), [a]
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__icontains=Substr("alias", 1, 3)), [a, b]
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__endswith=Substr("alias", 1, 3)), [b]
+        )
+
+    def test_null_column_rhs_excludes_row(self):
+        match = Book.objects.create(
+            isbn="53", title="hello world", author="x", alias="hello", price=1
+        )
+        # A NULL alias must not match, even though its column is the RHS.
+        Book.objects.create(
+            isbn="54", title="hello world", author="x", alias=None, price=1
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__startswith=F("alias")), [match]
+        )
