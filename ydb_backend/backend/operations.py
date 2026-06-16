@@ -206,9 +206,9 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         """
-        Given a lookup_type of 'year', 'month', or 'day', return the SQL that
-        truncates the given date or datetime field field_name to a date object
-        with only the given specificity.
+        Given a lookup_type of 'year', 'quarter', 'month', 'week', or 'day',
+        return the SQL that truncates the given date or datetime field
+        field_name to a date object with only the given specificity.
 
         If `tzname` is provided, the given value is truncated in a specific
         timezone.
@@ -266,9 +266,10 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def datetime_trunc_sql(self, lookup_type, sql, params, tzname):
         """
-        Given a lookup_type of 'year', 'month', 'day', 'hour', 'minute', or
-        'second', return the SQL that truncates the given datetime field
-        field_name to a datetime object with only the given specificity.
+        Given a lookup_type of 'year', 'quarter', 'month', 'week', 'day',
+        'hour', 'minute', or 'second', return the SQL that truncates the given
+        datetime field field_name to a datetime object with only the given
+        specificity.
         """
         # As in date_trunc_sql, narrow the wide Timestamp64 the backend stores
         # datetimes in to Timestamp before AddTimezone/StartOf, then materialise
