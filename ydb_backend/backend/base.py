@@ -115,9 +115,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # ``%`` is used (not the SQL-standard doubled ``%%``): this backend resolves
     # parameters by name and never ``%``-formats the assembled query, so ``%%``
     # would reach YDB doubled and break the literal-percent escaping.
+    # The expression is COALESCEd to a non-optional Utf8: an expression over a
+    # nullable column is Optional<Utf8>, and YQL's LIKE rejects an Optional
+    # pattern (issue #91). A NULL right-hand side then yields an empty pattern
+    # (match-all), which the pattern-lookup as_sql override in operations.py
+    # corrects with a trailing "IS NOT NULL" guard so a NULL excludes the row.
     pattern_esc = (
         "Unicode::ReplaceAll(Unicode::ReplaceAll(Unicode::ReplaceAll("
-        "{}, '~'u, '~~'u), '%'u, '~%'u), '_'u, '~_'u)"
+        "COALESCE({}, ''u), '~'u, '~~'u), '%'u, '~%'u), '_'u, '~_'u)"
     )
     pattern_ops = {
         "contains": "LIKE '%'u || {} || '%'u ESCAPE '~'",

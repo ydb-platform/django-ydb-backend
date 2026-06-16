@@ -232,11 +232,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "lookup.tests.LookupTests.test_exact_exists",
             "lookup.tests.LookupTests.test_nested_outerref_lhs",
         },
-        "A pattern lookup over a nullable expression RHS builds an "
-        "Optional<Utf8> LIKE pattern that YQL rejects (see issue #91); the "
-        "RHS here is Substr() over the nullable Author.alias.": {
-            "lookup.tests.LookupTests.test_pattern_lookups_with_substr",
-        },
         "Lookups that coerce a value to a different field type (int-as-str, "
         "date-as-str) or apply regex to non-string/NULL operands raise during "
         "parameter handling.": {
