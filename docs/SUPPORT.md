@@ -74,7 +74,7 @@ Full type mapping is in [FIELDS.md](FIELDS.md). Status of each Django field:
 | `IntegerField` & `Small`/`Big`/`Positive*` variants | ✅ | Signed/unsigned int types per range; see FIELDS.md. |
 | `BooleanField` | ✅ | `Bool`. |
 | `FloatField` | ✅ | `Float`; cannot be a primary key. |
-| `DecimalField` | 🟡 | Only `Decimal(22,9)` is supported; values are rounded to scale (#82). |
+| `DecimalField` | ✅ | Arbitrary `max_digits`/`decimal_places` (column and bound parameters derive from the field); values rounded to scale. YDB reliably keeps ~26 significant digits. |
 | `UUIDField` | ✅ | Native `UUID` (`has_native_uuid_field`). |
 | `DurationField` | ✅ | `Interval` (±136 years); cannot be a primary key. Temporal subtraction supported. |
 | `DateField` | ✅ | `Date32` (signed wide); pre-1970 dates round-trip. |

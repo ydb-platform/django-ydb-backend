@@ -50,7 +50,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # YDB has no time type; store the time of day as Int64 microseconds
         # since midnight (introspects back as BigIntegerField).
         "TimeField": "Int64",
-        "DecimalField": "Decimal(22, 9)",
+        # Decimal precision/scale come from the field's max_digits /
+        # decimal_places (formatted by Field.db_type); YDB supports up to 35
+        # digits (issue #82).
+        "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
         "DurationField": "Interval",
         "FloatField": "Float",
         "DoubleField": "Double",

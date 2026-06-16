@@ -54,6 +54,16 @@ class IntegerFieldsModel(models.Model):
         )
 
 
+class DecimalPrecisionModel(models.Model):
+    # Precisions/scales beyond the legacy hardcoded Decimal(22, 9) (issue #82).
+    wide = models.DecimalField(max_digits=30, decimal_places=2)
+    high_scale = models.DecimalField(max_digits=20, decimal_places=15)
+    small = models.DecimalField(max_digits=5, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.wide} {self.high_scale} {self.small}"
+
+
 class FloatingPointModel(models.Model):
     float_field = models.FloatField()
     decimal_field = models.DecimalField(
