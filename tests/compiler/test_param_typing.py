@@ -106,8 +106,10 @@ class TestParameterTyping(TransactionTestCase):
 
     # Correlated subqueries (OuterRef) are typed and compose correctly, but YDB
     # does not support correlated subqueries: the outer table is not in scope
-    # inside the subquery ("Member not found"). This is a YDB platform
-    # limitation, unrelated to parameter typing, and is kept here as a marker.
+    # inside the subquery ("Member not found: <table>"). This is a YDB platform
+    # limitation, unrelated to parameter typing (issue #77; see
+    # docs/SUPPORT.md), and is kept here as a marker. Django's exclude() across
+    # a multivalued relation hits the same limitation.
     @expectedFailure
     def test_exists_correlated(self):
         skus = Product.objects.filter(

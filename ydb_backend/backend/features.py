@@ -219,9 +219,13 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "basic.tests.SelectOnSaveTests.test_select_on_save_lying_update",
         },
         # --- lookup module (issue #72), grouped by observed failure mode. ---
-        "A subquery used as the left-hand side of a lookup (Exists/OuterRef/"
-        "subquery LHS) resolves to an unknown YQL member; correlated subqueries "
-        "are unsupported.": {
+        # All four use OuterRef inside Exists/Subquery: the subquery references
+        # the outer row, which YDB cannot resolve ("Member not found: <table>").
+        # Correlated subqueries are a YDB platform limitation, not a parameter
+        # wiring bug (issue #77; see docs/SUPPORT.md). Non-correlated subqueries
+        # work.
+        "Correlated subqueries (OuterRef inside Exists/Subquery, or an Exists/"
+        "subquery as a lookup left-hand side) are unsupported by YDB.": {
             "lookup.tests.LookupQueryingTests.test_filter_exists_lhs",
             "lookup.tests.LookupQueryingTests.test_filter_subquery_lhs",
             "lookup.tests.LookupTests.test_exact_exists",

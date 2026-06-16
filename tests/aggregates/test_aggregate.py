@@ -537,3 +537,31 @@ class TestAggregateCompilerGaps(TransactionTestCase):
             [(r["make"], r["n"]) for r in rows],
             [("Honda", 1), ("Toyota", 2)],
         )
+
+    def test_order_by_drops_constant(self):
+        # An .extra() constant select used in order_by emits "ORDER BY (1)",
+        # which YQL rejects ("Unable to ORDER BY constant expression"); the
+        # constant term is dropped while the column term still orders the rows.
+        ids = list(
+            Car.objects.extra(select={"vplus": "max_speed+1", "cnst": "1"})
+            .order_by("cnst", "vplus")
+            .values_list("id", flat=True)
+        )
+        # Ordered by max_speed: Corolla (190), Camry (200), Civic (210).
+        self.assertEqual(ids, [2, 1, 3])
+
+    def test_group_by_keeps_extra_column_expression(self):
+        # An .extra() raw column expression ("max_speed+1", emitted without
+        # backticks) references a column, so it must NOT be treated as a constant
+        # and dropped from GROUP BY. Asserted at the SQL level: YDB separately
+        # rejects grouping by such an expression at runtime (functional
+        # dependency), which is unrelated to the constant-dropping logic.
+        qs = (
+            Car.objects.extra(select={"sp": "max_speed+1"})
+            .values("sp")
+            .annotate(n=Count("id"))
+        )
+        sql, _ = qs.query.get_compiler("default").as_sql()
+        group_by = sql.split("GROUP BY", 1)
+        self.assertEqual(len(group_by), 2, "expected a GROUP BY clause")
+        self.assertIn("max_speed+1", group_by[1])

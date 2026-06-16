@@ -247,8 +247,14 @@ These follow from YDB's architecture and are **not expected to change** (issue
    **primary-key-only models**; both raise `NotSupportedError`. Give every model
    at least one non-PK field, and use `abstract = True` base classes instead of
    concrete parents.
-4. **No correlated subqueries.** `OuterRef` inside `Exists`/`Subquery` cannot be
-   resolved.
+4. **No correlated subqueries.** A subquery that references the enclosing
+   query's table fails with `Member not found: <table>` (the outer row is not in
+   scope). This covers `OuterRef` inside `Exists`/`Subquery`, an `Exists`/subquery
+   used as a lookup's left-hand side, and Django's `exclude()` across a
+   multivalued relationship (which Django compiles to a correlated subquery).
+   Non-correlated subqueries (e.g. `field__in=<queryset>`) work. This is a YDB
+   platform limitation (#77); it is distinct from the `Unknown name: $element_N`
+   parameter-wiring error (related-field DELETE), which is fixed.
 
 ## Release-blocking vs non-blocking gaps
 
