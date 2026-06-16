@@ -96,7 +96,7 @@ class _ParamTypingMixin:
         if field is None:
             return None
         try:
-            return _get_field_internal_type(field)
+            return _decimal_ydb_type(field) or _get_field_internal_type(field)
         except (FieldError, AttributeError):
             return None
 
@@ -198,6 +198,12 @@ class _TypedParam:
 
 
 def _resolve_one(field_type, val):
+    # A DecimalField carries its precision/scale as a ready ydb.DecimalType
+    # (checked first: it is unhashable, so it must not reach the ``in`` test
+    # below).
+    if isinstance(field_type, ydb.DecimalType):
+        return (val, field_type)
+
     # A non-temporal field type with a temporal value is a contradiction
     # (e.g. __year=N compares datetime bounds but its lookup's output_field is
     # IntegerField); trust the value in that case.
@@ -251,7 +257,7 @@ def _generate_params_for_update(placeholder_rows, internal_types, params):
     return {ph: resolved[i] for i, ph in enumerate(placeholder_rows)}
 
 
-def _get_field_internal_type(field):
+def _concrete_field(field):
     # A relation column stores the concrete type of its target's primary key,
     # and that target may itself be a relation (e.g. a OneToOneField primary
     # key under multi-table inheritance). Follow the chain to the concrete
@@ -259,7 +265,27 @@ def _get_field_internal_type(field):
     # non-relation primary key, and model graphs cannot make this cyclic.
     while getattr(field, "remote_field", None) and hasattr(field, "target_field"):
         field = field.target_field
-    return field.get_internal_type()
+    return field
+
+
+def _get_field_internal_type(field):
+    return _concrete_field(field).get_internal_type()
+
+
+def _decimal_ydb_type(field):
+    # A DecimalField is stored as Decimal(max_digits, decimal_places); bound
+    # parameters must carry the same precision/scale, so derive the YDB
+    # DecimalType from the field rather than a fixed Decimal(22, 9) (issue #82).
+    # Returns None for a non-decimal field, or one whose precision/scale is
+    # unset (e.g. the inferred output_field of a Decimal literal in an
+    # expression), so the caller falls back to the default Decimal type.
+    field = _concrete_field(field)
+    if field.get_internal_type() == "DecimalField":
+        max_digits = getattr(field, "max_digits", None)
+        decimal_places = getattr(field, "decimal_places", None)
+        if max_digits is not None and decimal_places is not None:
+            return ydb.DecimalType(max_digits, decimal_places)
+    return None
 
 
 def _get_data(fields, param_rows):
@@ -302,7 +328,7 @@ def _get_data(fields, param_rows):
 def _get_data_type(fields):
     struct_type = ydb.StructType()
     for f in fields:
-        ydb_type = _ydb_types[_get_field_internal_type(f)]
+        ydb_type = _decimal_ydb_type(f) or _ydb_types[_get_field_internal_type(f)]
         if getattr(f, "null", False):
             ydb_type = ydb.OptionalType(ydb_type)
         struct_type.add_member(f.column, ydb_type)
@@ -670,9 +696,13 @@ class BaseSQLWriteCompiler(compiler.SQLInsertCompiler):
 
         field_types = []
         for f in value_fields:
-            yql_type = self.connection.introspection.get_yql_type(
-                _get_field_internal_type(f)
-            )
+            decimal_type = _decimal_ydb_type(f)
+            if decimal_type is not None:
+                yql_type = f"Decimal({decimal_type.precision}, {decimal_type.scale})"
+            else:
+                yql_type = self.connection.introspection.get_yql_type(
+                    _get_field_internal_type(f)
+                )
             if getattr(f, "null", False):
                 yql_type = f"Optional<{yql_type}>"
             field_types.append(f"{qn(f.column)}: {yql_type}")
@@ -930,7 +960,9 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
             elif val is not None:
                 values.append(f"{qn(name)} = {placeholder}")
                 update_params.append(val)
-                set_types.append(_get_field_internal_type(field))
+                set_types.append(
+                    _decimal_ydb_type(field) or _get_field_internal_type(field)
+                )
             else:
                 values.append(f"{qn(name)} = NULL")
         table = self.query.base_table
