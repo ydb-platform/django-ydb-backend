@@ -1,5 +1,6 @@
 import datetime
 import json
+import warnings
 
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.functions import Now
@@ -345,6 +346,39 @@ class DatabaseOperations(BaseDatabaseOperations):
         Return the value to use for the LIMIT when we are wanting "LIMIT
         infinity". Return None if the limit clause can be omitted in this case.
         """
+
+    # Default LIMIT applied to an OFFSET with no upper bound (see
+    # limit_offset_sql). YQL has no "unbounded" limit -- a huge value makes the
+    # server try to materialise that many rows (deadline/execution errors) -- so
+    # a finite default is used and a warning is emitted.
+    _UNBOUNDED_OFFSET_LIMIT = 1000
+
+    def limit_offset_sql(self, low_mark, high_mark):
+        """
+        Return a LIMIT/OFFSET clause. YQL rejects a bare ``OFFSET`` (it must
+        follow a ``LIMIT``), so a slice with an offset but no upper bound -- e.g.
+        ``qs[2:]``, including inside an ``IN`` subquery -- gets a default LIMIT
+        and warns, since there is no real upper bound to emit.
+        """
+        limit, offset = self._get_limit_offset_params(low_mark, high_mark)
+        parts = []
+        if limit is not None:
+            # ``is not None`` keeps an explicit ``LIMIT 0`` (e.g. qs[:0] or
+            # qs[5:5]) instead of treating it as "no limit".
+            parts.append(f"LIMIT {limit}")
+        elif offset:
+            warnings.warn(
+                "YDB requires a LIMIT before OFFSET; an open-ended slice "
+                f"(e.g. qs[{offset}:]) has no upper bound, so a default "
+                f"LIMIT {self._UNBOUNDED_OFFSET_LIMIT} is applied. Add an "
+                "explicit upper bound (qs[start:stop]) to avoid truncating the "
+                "result.",
+                stacklevel=2,
+            )
+            parts.append(f"LIMIT {self._UNBOUNDED_OFFSET_LIMIT}")
+        if offset:
+            parts.append(f"OFFSET {offset}")
+        return " ".join(parts)
 
     def quote_name(self, name):
         """
