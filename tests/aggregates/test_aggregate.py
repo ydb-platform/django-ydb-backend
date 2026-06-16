@@ -1,9 +1,12 @@
 from django.db.models import Avg
 from django.db.models import Count
+from django.db.models import ExpressionWrapper
+from django.db.models import IntegerField
 from django.db.models import Max
 from django.db.models import Min
 from django.db.models import Q
 from django.db.models import Sum
+from django.db.models import Value
 from django.test import TransactionTestCase
 
 from .models import Car
@@ -486,3 +489,51 @@ class TestAggregates(TransactionTestCase):
         self.assertIn("COUNT", sql)
         self.assertIn("SUM", sql)
         self.assertIn("CASE WHEN", sql)
+
+
+class TestAggregateCompilerGaps(TransactionTestCase):
+    """Database function/aggregate gaps surfaced by conformance (issue #80)."""
+
+    databases = {"default"}
+
+    def setUp(self):
+        Car.objects.bulk_create(
+            [
+                Car(id=1, make="Toyota", model="Camry", color="Red",
+                    max_speed=200, price=25000, year=2020, in_stock=True),
+                Car(id=2, make="Toyota", model="Corolla", color="Blue",
+                    max_speed=190, price=22000, year=2021, in_stock=True),
+                Car(id=3, make="Honda", model="Civic", color="Black",
+                    max_speed=210, price=24000, year=2022, in_stock=True),
+            ]
+        )
+
+    def test_group_by_drops_constant_expression(self):
+        # A constant annotation alongside an aggregate puts a constant in
+        # GROUP BY, which YQL rejects ("Unable to GROUP BY constant
+        # expression"); the constant term must be dropped from the clause.
+        car = (
+            Car.objects.annotate(
+                combined=ExpressionWrapper(
+                    Value(3) * Value(4), output_field=IntegerField()
+                ),
+                review_count=Count("id"),
+            )
+            .order_by("id")
+            .first()
+        )
+        self.assertEqual(car.combined, 12)
+        self.assertEqual(car.review_count, 1)
+
+    def test_order_by_selected_aggregate(self):
+        # YQL cannot ORDER BY an aggregate directly ("Unable to ORDER BY
+        # aggregated values"); ordering must reference the selected alias.
+        rows = list(
+            Car.objects.values("make")
+            .annotate(n=Count("id"))
+            .order_by("n", "make")
+        )
+        self.assertEqual(
+            [(r["make"], r["n"]) for r in rows],
+            [("Honda", 1), ("Toyota", 2)],
+        )
