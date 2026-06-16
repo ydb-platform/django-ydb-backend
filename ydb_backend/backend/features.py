@@ -219,11 +219,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "basic.tests.SelectOnSaveTests.test_select_on_save_lying_update",
         },
         # --- lookup module (issue #72), grouped by observed failure mode. ---
-        "TimeField is not supported: YDB has no native time type.": {
-            "lookup.test_timefield.TimeFieldLookupTests.test_hour_lookups",
-            "lookup.test_timefield.TimeFieldLookupTests.test_minute_lookups",
-            "lookup.test_timefield.TimeFieldLookupTests.test_second_lookups",
-        },
         "A subquery used as the left-hand side of a lookup (Exists/OuterRef/"
         "subquery LHS) resolves to an unknown YQL member; correlated subqueries "
         "are unsupported.": {

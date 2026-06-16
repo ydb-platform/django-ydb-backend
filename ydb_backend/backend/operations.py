@@ -407,12 +407,29 @@ class DatabaseOperations(BaseDatabaseOperations):
             return []
         return [self.sql_flush_table(style, table) for table in tables]
 
+    # Divisor (microseconds per unit) and modulus for extracting a component
+    # from a TimeField, stored as Int64 microseconds since midnight.
+    _TIME_EXTRACT = {
+        "hour": (3_600_000_000, 24),
+        "minute": (60_000_000, 60),
+        "second": (1_000_000, 60),
+    }
+
     def time_extract_sql(self, lookup_type, sql, params):
         """
         Given a lookup_type of 'hour', 'minute', or 'second', return the SQL
         that extracts a value from the given time field field_name.
         """
-        return self.datetime_extract_sql(lookup_type, sql, params, tzname=None)
+        # TimeField is stored as Int64 microseconds since midnight (YDB has no
+        # native time type), so DateTime::Get* -- which operate on temporal
+        # types -- cannot be used; compute the component with integer arithmetic
+        # on the microseconds value instead (issue #81).
+        unit = self._TIME_EXTRACT.get(lookup_type)
+        if unit is None:
+            msg = f"Unsupported lookup type for TimeField: {lookup_type}"
+            raise ValueError(msg)
+        divisor, modulus = unit
+        return f"(({sql}) / {divisor} % {modulus})", params
 
     # TODO: Double check
     def last_executed_query(self, cursor, sql, params):

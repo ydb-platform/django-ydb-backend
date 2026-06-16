@@ -1,5 +1,6 @@
 from datetime import date
 from datetime import datetime
+from datetime import time
 from datetime import timedelta
 from datetime import timezone as stdlib_timezone
 
@@ -9,8 +10,10 @@ from django.db.models.functions import TruncHour
 from django.db.models.functions import TruncMonth
 from django.db.models.functions import TruncYear
 from django.test import SimpleTestCase
+from django.test import TransactionTestCase
 from django.utils import timezone
 
+from .models import AlarmModel
 from .models import TimeModel
 
 
@@ -323,3 +326,35 @@ class TimeFieldsTest(SimpleTestCase):
     #     qs = TimeModel.objects.filter(date_field__year=2023, date_field__month=5)
     #     self.assertEqual(qs.count(), 1)
     #     self.assertEqual(qs.first().date_field, date(2023, 5, 15))
+
+
+class TimeFieldLookupTest(TransactionTestCase):
+    """__hour/__minute/__second on a TimeField (issue #81).
+
+    TimeField is stored as Int64 microseconds since midnight, so the components
+    are extracted with integer arithmetic rather than DateTime::Get*.
+    """
+
+    databases = {"default"}
+
+    def setUp(self):
+        self.early = AlarmModel.objects.create(desc="Early", time=time(5, 30))
+        self.late = AlarmModel.objects.create(desc="Late", time=time(10, 0))
+        self.precise = AlarmModel.objects.create(
+            desc="Precise", time=time(12, 34, 56)
+        )
+
+    def test_hour_lookup(self):
+        self.assertCountEqual(
+            AlarmModel.objects.filter(time__hour=5), [self.early]
+        )
+
+    def test_minute_lookup(self):
+        self.assertCountEqual(
+            AlarmModel.objects.filter(time__minute=30), [self.early]
+        )
+
+    def test_second_lookup(self):
+        self.assertCountEqual(
+            AlarmModel.objects.filter(time__second=56), [self.precise]
+        )
