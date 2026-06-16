@@ -3,6 +3,7 @@ import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.functions import Now
+from django.db.models.functions import Substr
 
 
 def _now_as_ydb(self, compiler, connection, **extra_context):
@@ -15,6 +16,27 @@ def _now_as_ydb(self, compiler, connection, **extra_context):
 
 
 Now.as_ydb = _now_as_ydb
+
+
+def _substr_as_ydb(self, compiler, connection, **extra_context):  # noqa: ARG001
+    # YQL's SUBSTRING built-in rejects Utf8 (CharField/TextField map to Utf8)
+    # and is 0-indexed, whereas Django's Substr is 1-indexed. Use the
+    # Utf8-native Unicode::Substring and shift the position by one.
+    source, pos, *length = self.source_expressions
+    source_sql, params = compiler.compile(source)
+    pos_sql, pos_params = compiler.compile(pos)
+    # Unicode::Substring takes Uint64 offsets; Django's pos is 1-based and
+    # bound as a signed integer, so shift to 0-based and cast.
+    parts = [source_sql, f"CAST(({pos_sql}) - 1 AS Uint64)"]
+    params = [*params, *pos_params]
+    if length:
+        length_sql, length_params = compiler.compile(length[0])
+        parts.append(f"CAST({length_sql} AS Uint64)")
+        params.extend(length_params)
+    return f"Unicode::Substring({', '.join(parts)})", params
+
+
+Substr.as_ydb = _substr_as_ydb
 
 DATE_PARAMS_EXTRACT = [
     "year",

@@ -169,7 +169,7 @@ operation: it either raises `NotSupportedError` or skips with a warning.
 |---------|:------:|-------|
 | CRUD (`create`/`get`/`filter`/`update`/`delete`) | ✅ | |
 | Most field lookups | ✅ | `exact`, `in`, ranges, `icontains`, date-extract (`week_day`/`week`/`quarter`/...), etc. |
-| Backslash / `%` / `_` escaping in pattern & exact lookups | ✅ | Escaped correctly via `ESCAPE '~'` (issue #75). `Substr()` on a text column is still unsupported (#87). |
+| Backslash / `%` / `_` escaping in pattern & exact lookups | ✅ | Escaped correctly via `ESCAPE '~'` (issue #75). `Substr()` on a text column works via `Unicode::Substring` (#87); a pattern lookup whose right-hand side is a *nullable* expression remains unsupported (#91). |
 | Coercing lookups (`int`-as-`str`, `date`-as-`str`), regex on NULL/non-string | ❌ | Raise during parameter handling. |
 | Correlated subqueries (`Exists`/`Subquery`/`OuterRef` as LHS) | ❌ | YDB cannot resolve the outer reference (issue #77). Non-correlated subqueries work. |
 | Aggregation / annotation | 🟡 | GROUP BY validation fixed (#76); tail remains: `ORDER BY` aggregated values, `GROUP BY` constant, `PI()`/`Random()`/`CURRENT_TIMESTAMP` (issue #80). |

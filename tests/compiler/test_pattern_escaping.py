@@ -1,4 +1,5 @@
 from django.db.models import F
+from django.db.models.functions import Substr
 from django.test import TransactionTestCase
 
 from .models import Book
@@ -80,4 +81,38 @@ class PatternLookupExpressionTest(TransactionTestCase):
         Book.objects.create(isbn="24", title="10X off", author="10%", price=1)
         self.assertCountEqual(
             Book.objects.filter(title__startswith=F("author")), [literal]
+        )
+
+
+class SubstrTest(TransactionTestCase):
+    """Substr() on a Utf8 column, 1-indexed (issue #87)."""
+
+    def test_substr_is_one_indexed(self):
+        obj = Book.objects.annotate(
+            head=Substr("author", 1, 3),
+            tail=Substr("author", 4),
+        ).get(
+            isbn=Book.objects.create(
+                isbn="40", title="t", author="abcdef", price=1
+            ).isbn
+        )
+        self.assertEqual(obj.head, "abc")
+        self.assertEqual(obj.tail, "def")
+
+    def test_pattern_lookup_with_substr(self):
+        a = Book.objects.create(
+            isbn="41", title="John Smith", author="Johx", price=1
+        )
+        b = Book.objects.create(
+            isbn="42", title="Rhonda Simpson", author="sonx", price=1
+        )
+        # Substr(author, 1, 3) is "Joh" / "son".
+        self.assertCountEqual(
+            Book.objects.filter(title__startswith=Substr("author", 1, 3)), [a]
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__contains=Substr("author", 1, 3)), [a, b]
+        )
+        self.assertCountEqual(
+            Book.objects.filter(title__endswith=Substr("author", 1, 3)), [b]
         )
