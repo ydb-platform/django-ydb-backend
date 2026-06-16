@@ -344,10 +344,14 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
         # SELECT DISTINCT it resolves ORDER BY against the projected columns
         # only (issue #93), and it cannot ORDER BY an aggregate in a GROUP BY
         # query ("Unable to ORDER BY aggregated values", issue #80).
+        # Keyed by SQL with a list of (params, alias): different select
+        # expressions can compile to the same SQL text (e.g. constants that both
+        # render "%s") yet differ in their bound params, so the params are kept
+        # to disambiguate which alias an order-by term maps to.
         select_aliases = {}
-        for _, (s_sql, _), s_alias in self.select:
+        for _, (s_sql, s_params), s_alias in self.select:
             if s_alias:
-                select_aliases.setdefault(s_sql, s_alias)
+                select_aliases.setdefault(s_sql, []).append((s_params, s_alias))
         distinct = self.query.distinct and not self.query.distinct_fields
         # YDB rejects "ORDER BY N" (ordinal position reference, a Django 5.x
         # optimisation via PositionRef). Re-compile affected entries with the
@@ -379,8 +383,17 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
             ):
                 match = self.ordering_parts.search(entry_sql)
                 base = match[1] if match else entry_sql
-                alias = select_aliases.get(base)
-                if alias:
+                # Match on params too so a same-SQL-but-different-params select
+                # column is not aliased to the wrong one.
+                alias = next(
+                    (
+                        a
+                        for s_params, a in select_aliases.get(base, ())
+                        if s_params == entry_params
+                    ),
+                    None,
+                )
+                if alias is not None:
                     direction = entry_sql[len(base):]
                     entry_sql = f"{self.connection.ops.quote_name(alias)}{direction}"
                     entry_params = []
