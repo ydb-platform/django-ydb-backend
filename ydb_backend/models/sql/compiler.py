@@ -338,15 +338,21 @@ def _get_data_type(fields):
 class SQLCompiler(_ParamTypingMixin, SQLCompiler):
     def get_order_by(self):
         result = super().get_order_by()
-        # Under SELECT DISTINCT, YQL resolves ORDER BY against the projected
-        # output columns only. Map each selected column's SQL to its alias so an
-        # order-by term that re-emits a select expression can reference that
-        # alias instead of a base column the projection has dropped (issue #93).
-        distinct_aliases = {}
-        if self.query.distinct and not self.query.distinct_fields:
-            for _, (s_sql, _), s_alias in self.select:
-                if s_alias:
-                    distinct_aliases.setdefault(s_sql, s_alias)
+        # Map each selected column's SQL to its alias so an order-by term that
+        # re-emits a select expression can reference that alias instead. YQL
+        # rejects ordering by such an expression directly in two cases: under
+        # SELECT DISTINCT it resolves ORDER BY against the projected columns
+        # only (issue #93), and it cannot ORDER BY an aggregate in a GROUP BY
+        # query ("Unable to ORDER BY aggregated values", issue #80).
+        # Keyed by SQL with a list of (params, alias): different select
+        # expressions can compile to the same SQL text (e.g. constants that both
+        # render "%s") yet differ in their bound params, so the params are kept
+        # to disambiguate which alias an order-by term maps to.
+        select_aliases = {}
+        for _, (s_sql, s_params), s_alias in self.select:
+            if s_alias:
+                select_aliases.setdefault(s_sql, []).append((s_params, s_alias))
+        distinct = self.query.distinct and not self.query.distinct_fields
         # YDB rejects "ORDER BY N" (ordinal position reference, a Django 5.x
         # optimisation via PositionRef). Re-compile affected entries with the
         # underlying source expression so the actual column name is emitted.
@@ -365,19 +371,29 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
             else:
                 entry_sql, entry_params = o_sql, o_params
             entry_is_ref = is_ref
-            if distinct_aliases:
-                # Strip the trailing direction (ASC/DESC) to match the bare
-                # select SQL. The keys are full select expressions, so a plain
-                # alias reference (already safe under DISTINCT) never matches;
-                # only a re-emitted expression -- whether a non-ref term or a
-                # PositionRef expanded just above -- is rewritten to its alias.
-                # Drop the now-duplicated params (bound by the select column)
-                # and mark the entry as a reference so get_extra_select() does
-                # not re-add the alias as an extra projected column.
+            # Rewrite to the select alias only when YQL needs it: a DISTINCT
+            # projection, or an aggregate term. The keys are full select
+            # expressions, so a plain alias reference never matches; only a
+            # re-emitted expression (a non-ref term or a PositionRef expanded
+            # just above) is rewritten. Drop the now-duplicated params (bound by
+            # the select column) and mark the entry as a reference so
+            # get_extra_select() does not re-add the alias as an extra column.
+            if select_aliases and (
+                distinct or getattr(resolved, "contains_aggregate", False)
+            ):
                 match = self.ordering_parts.search(entry_sql)
                 base = match[1] if match else entry_sql
-                alias = distinct_aliases.get(base)
-                if alias:
+                # Match on params too so a same-SQL-but-different-params select
+                # column is not aliased to the wrong one.
+                alias = next(
+                    (
+                        a
+                        for s_params, a in select_aliases.get(base, ())
+                        if s_params == entry_params
+                    ),
+                    None,
+                )
+                if alias is not None:
                     direction = entry_sql[len(base):]
                     entry_sql = f"{self.connection.ops.quote_name(alias)}{direction}"
                     entry_params = []
@@ -480,6 +496,12 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
 
                 grouping = []
                 for g_sql, g_params in group_by:
+                    # YQL rejects "GROUP BY <constant>" (issue #80). A grouping
+                    # term with no column reference (column names are
+                    # backtick-quoted) is constant -- the same value for every
+                    # row -- so it does not partition the result and is dropped.
+                    if "`" not in g_sql:
+                        continue
                     grouping.append(g_sql)
                     params.extend(g_params)
                     param_types += [None] * len(g_params)
