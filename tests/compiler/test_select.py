@@ -50,8 +50,8 @@ class TestExists(TransactionTestCase):
 class TestSlicedSubquery(TransactionTestCase):
     """
     Slicing a subquery emits LIMIT/OFFSET inside it. YQL rejects a bare OFFSET
-    (it must follow a LIMIT), so qs[N:] -- an offset with no upper bound -- needs
-    an explicit unbounded LIMIT, else "mismatched input 'OFFSET'".
+    (it must follow a LIMIT), so qs[N:] -- an offset with no upper bound -- gets
+    a default LIMIT (and a warning), else "mismatched input 'OFFSET'".
     """
 
     databases = {"default"}
@@ -99,3 +99,8 @@ class TestSlicedSubquery(TransactionTestCase):
                 )
             )
         self.assertEqual(got, self.ids[:3][::-1])
+
+    def test_empty_slice(self):
+        # qs[5:5] is LIMIT 0 (limit is 0, not "no limit"): it must return
+        # nothing, not fall into the offset-default path and return rows.
+        self.assertEqual(list(ProductReview.objects.order_by("-id")[5:5]), [])

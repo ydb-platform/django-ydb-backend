@@ -362,7 +362,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         """
         limit, offset = self._get_limit_offset_params(low_mark, high_mark)
         parts = []
-        if limit:
+        if limit is not None:
+            # ``is not None`` keeps an explicit ``LIMIT 0`` (e.g. qs[:0] or
+            # qs[5:5]) instead of treating it as "no limit".
             parts.append(f"LIMIT {limit}")
         elif offset:
             warnings.warn(
