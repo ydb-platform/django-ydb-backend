@@ -121,5 +121,7 @@ jobs:
       - name: Start YDB
         run: docker compose up -d --wait
 
-      - name: Conformance — basic, lookup
-        run: conformance/run.sh basic lookup
+      - name: Conformance — core and relation modules
+        run: >-
+          conformance/run.sh basic lookup
+          select_related many_to_one one_to_one m2m_through

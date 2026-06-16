@@ -3,6 +3,7 @@ import json
 
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.functions import Now
+from django.db.models.functions import Pi
 from django.db.models.functions import Substr
 
 
@@ -37,6 +38,16 @@ def _substr_as_ydb(self, compiler, connection, **extra_context):  # noqa: ARG001
 
 
 Substr.as_ydb = _substr_as_ydb
+
+
+def _pi_as_ydb(self, compiler, connection, **extra_context):
+    # YQL has no PI() built-in (Pi's default template); use Math::Pi().
+    return self.as_sql(
+        compiler, connection, template="Math::Pi()", **extra_context
+    )
+
+
+Pi.as_ydb = _pi_as_ydb
 
 DATE_PARAMS_EXTRACT = [
     "year",

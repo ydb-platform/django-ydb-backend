@@ -10,6 +10,7 @@ from django.core.exceptions import EmptyResultSet
 from django.core.exceptions import FieldError
 from django.core.exceptions import FullResultSet
 from django.db import DatabaseError
+from django.db import IntegrityError
 from django.db import NotSupportedError
 from django.db import models
 from django.db.models.expressions import RawSQL
@@ -264,10 +265,26 @@ def _get_field_internal_type(field):
 def _get_data(fields, param_rows):
     result = []
 
+    auto_field_types = (
+        models.AutoField,
+        models.SmallAutoField,
+        models.BigAutoField,
+    )
     for i in range(len(param_rows)):
         struct = {}
         for j in range(len(fields)):
+            field = fields[j]
             val = param_rows[i][j]
+            if (
+                val is None
+                and not getattr(field, "null", False)
+                and not isinstance(field, auto_field_types)
+            ):
+                # A NOT NULL column cannot store NULL. Surface it the way Django
+                # expects (IntegrityError) instead of the driver's opaque type
+                # error when it tries to bind None to a non-optional type.
+                msg = f"NOT NULL constraint failed: {field.column}"
+                raise IntegrityError(msg)
             internal_type = _get_field_internal_type(fields[j])
             if val is None or isinstance(val, int):
                 struct[fields[j].column] = val
