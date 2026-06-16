@@ -336,6 +336,17 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         "not raise IntegrityError (uniqueness is an application responsibility).": {
             "one_to_one.tests.OneToOneTests.test_multiple_o2o",
         },
+        # Reproduced on the latest local-ydb:trunk only (the 2026-06-08 trunk
+        # was green); the through-row INSERT inside set()'s atomic() is not
+        # visible afterward. Normal transactional inserts are unaffected.
+        "m2m set() with a through model loses the write on the latest YDB "
+        "trunk (a transaction-visibility regression, not a backend bug); see "
+        "issue #96.": {
+            "m2m_through.tests.M2mThroughTests."
+            "test_set_on_m2m_with_intermediate_model_value_required",
+            "m2m_through.tests.M2mThroughReferentialTests."
+            "test_set_on_symmetrical_m2m_with_intermediate_model",
+        },
     }
 
     supports_transactions = True
