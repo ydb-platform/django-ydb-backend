@@ -324,14 +324,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "queries.test_contains.ContainsTests.test_wrong_model",
         },
         # --- relation modules (issue #74 conformance expansion). ---
-        "select_related().dates() does not project the date column it groups "
-        "on (see issue #93).": {
-            "many_to_one.tests.ManyToOneTests.test_select_related",
-        },
-        "DELETE filtered by a related field generates an undeclared parameter "
-        "(see issue #94).": {
-            "one_to_one.tests.OneToOneTests.test_o2o_primary_key_delete",
-        },
         "YDB does not enforce uniqueness, so creating a duplicate OneToOne does "
         "not raise IntegrityError (uniqueness is an application responsibility).": {
             "one_to_one.tests.OneToOneTests.test_multiple_o2o",

@@ -1,6 +1,8 @@
 from django.db.models import Q
 from django.test import TransactionTestCase
 
+from .models import Product
+from .models import ProductReview
 from .models import SimpleItem
 
 
@@ -88,6 +90,27 @@ class TestDelete(TransactionTestCase):
         ).delete()
 
         self.assertEqual(SimpleItem.objects.count(), 1)
+
+    def test_delete_filtered_by_related_field(self):
+        # Regression for issue #94: a DELETE whose WHERE filters on a joined
+        # (related) field is rewritten to ``pk IN (subquery)``. The subquery's
+        # bound parameter must be declared at the DELETE statement scope; before
+        # the fix it surfaced as "Unknown name: $element_1".
+        keep = Product.objects.create(
+            sku="P-KEEP", name="Keep", category="x", price=10, stock=5
+        )
+        drop = Product.objects.create(
+            sku="P-DROP", name="Drop", category="y", price=20, stock=3
+        )
+        ProductReview.objects.create(product=keep, rating=5)
+        ProductReview.objects.create(product=drop, rating=4)
+
+        ProductReview.objects.filter(product__name="Drop").delete()
+
+        self.assertEqual(ProductReview.objects.count(), 1)
+        self.assertEqual(
+            ProductReview.objects.filter(product__name="Drop").count(), 0
+        )
 
     def test_delete_all(self):
         SimpleItem.objects.create(

@@ -59,11 +59,18 @@ class TestDatabaseOperations(SimpleTestCase):
             "hour", "column_name", [], tzname=TZ_NAME
         )
 
-        self.assertEqual(sql_dt, "DateTime::StartOfYear(column_name)")
+        # StartOf* yields a Resource the driver cannot read, so the column is
+        # narrowed (Date/Timestamp) and the result materialised with a Make*
+        # function (see issue #93).
+        self.assertEqual(
+            sql_dt,
+            "DateTime::MakeDate(DateTime::StartOfYear(CAST(column_name AS Date)))",
+        )
         self.assertEqual(
             sql_dttm,
-            "DateTime::StartOf((AddTimezone(column_name, 'Europe/Moscow')), "
-            "Interval('PT1H'))",
+            "DateTime::MakeTimestamp(DateTime::StartOf("
+            "(AddTimezone(CAST(column_name AS Timestamp), 'Europe/Moscow')), "
+            "Interval('PT1H')))",
         )
         self.assertListEqual(params_dt, [])
 
