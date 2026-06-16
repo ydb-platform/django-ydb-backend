@@ -81,7 +81,7 @@ Full type mapping is in [FIELDS.md](FIELDS.md). Status of each Django field:
 | `DateTimeField` (`USE_TZ=True`) | ✅ | `Timestamp64` (signed wide), microsecond precision, pre-1970 instants. |
 | `DateTimeField` (`USE_TZ=False`) | 🟡 | Naive datetimes shift by the server timezone on round-trip (issue #78). Microsecond precision is fine. Production default `USE_TZ=True` is unaffected. |
 | `TimeField` | 🟡 | No native YDB time type; stored as `Int64` microseconds-since-midnight, introspected back as `BigIntegerField`. `__hour`/`__minute`/`__second` lookups are supported (computed by integer arithmetic on the stored value). |
-| `JSONField` | 🟡 | Native `Json`. Equality filter (`filter(data=value)`) is unsupported by YDB; cannot be introspected; no `JSONObject()`. `null=True` is documented as unsupported (see [FIELDS.md](FIELDS.md)); to be re-verified (#83). |
+| `JSONField` | 🟡 | Native `Json`. Equality filter (`filter(data=value)`) is unsupported by YDB; cannot be introspected; no `JSONObject()`. `null=True` is supported (stored as SQL NULL; `__isnull` filtering works). |
 
 ## Relations
 

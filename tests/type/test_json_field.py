@@ -65,3 +65,20 @@ class NullableJSONFieldTest(SimpleTestCase):
         self.assertEqual(
             NullableJSONModel.objects.filter(data__isnull=False).count(), 1
         )
+
+    def test_value_roundtrip(self):
+        obj = NullableJSONModel.objects.create(data={"key": [1, 2, 3]})
+        fetched = NullableJSONModel.objects.get(pk=obj.pk)
+        self.assertEqual(fetched.data, {"key": [1, 2, 3]})
+
+    def test_update_null_to_value(self):
+        obj = NullableJSONModel.objects.create(data=None)
+        NullableJSONModel.objects.filter(pk=obj.pk).update(data={"v": 1})
+        obj.refresh_from_db()
+        self.assertEqual(obj.data, {"v": 1})
+
+    def test_update_value_to_null(self):
+        obj = NullableJSONModel.objects.create(data={"v": 1})
+        NullableJSONModel.objects.filter(pk=obj.pk).update(data=None)
+        obj.refresh_from_db()
+        self.assertIsNone(obj.data)
