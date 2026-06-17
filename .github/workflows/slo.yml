@@ -23,7 +23,7 @@ jobs:
   ydb-slo-test:
     name: Run SLO (${{ matrix.scenario }})
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'SLO' }}
-    runs-on: ubuntu-latest
+    runs-on: "large-runner-django-ydb-backend"
     strategy:
       fail-fast: false
       matrix:
