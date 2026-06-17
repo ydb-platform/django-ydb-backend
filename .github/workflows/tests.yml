@@ -57,6 +57,20 @@ jobs:
       - name: Run tests
         run: poetry run coverage run tests/runtests.py
 
+      - name: Generate coverage report
+        run: poetry run coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: py${{ matrix.python-version }}-dj${{ matrix.django-version }}
+          name: py${{ matrix.python-version }}-dj${{ matrix.django-version }}
+          # Codecov outages should not fail the test gate; coverage is an
+          # informational signal, not a correctness check.
+          fail_ci_if_error: false
+
   conformance:
     # Runs Django's own bundled test suite against YDB as a required gate on
     # every supported Django version. `basic`/`lookup` must pass (gated by

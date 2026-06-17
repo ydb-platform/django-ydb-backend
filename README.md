@@ -1,6 +1,8 @@
 django-ydb-backend
 ===
 
+[![codecov](https://codecov.io/gh/ydb-platform/django-ydb-backend/branch/main/graph/badge.svg)](https://codecov.io/gh/ydb-platform/django-ydb-backend)
+
 Django YDB Backend
 Overview
 This is a Django database backend for [YDB](https://ydb.tech/), a distributed SQL database system.

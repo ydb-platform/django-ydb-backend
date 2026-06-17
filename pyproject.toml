@@ -34,6 +34,22 @@ sphinx-copybutton = "^0.5.0"
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.coverage.run]
+# Measure the backend package only; the test suite itself is the harness, not
+# the code under test.
+source = ["ydb_backend"]
+branch = true
+# Emit repo-relative paths so Codecov maps them onto the source tree regardless
+# of the absolute checkout location on the runner.
+relative_files = true
+omit = ["*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
 [tool.ruff]
 exclude = [".venv", ".git", ".github/scripts", "__pycache__", "build", "dist", "venv", "examples", "docs", "tests/slo"]
 line-length = 88

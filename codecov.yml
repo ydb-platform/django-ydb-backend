@@ -1,0 +1,33 @@
+# Codecov configuration.
+# https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        # Compare against the base commit; allow a small dip so unrelated
+        # refactors don't turn the check red.
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+# Each test matrix entry uploads with its own py<ver>-dj<ver> flag; merge them
+# into the project total without requiring every flag on every commit.
+flag_management:
+  default_rules:
+    carryforward: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: false
+
+# Coverage is measured for the backend package only (see tool.coverage.run in
+# pyproject.toml); keep non-shipped code out of any report just in case.
+ignore:
+  - "tests"
+  - "examples"
+  - "docs"
+  - "conformance"
