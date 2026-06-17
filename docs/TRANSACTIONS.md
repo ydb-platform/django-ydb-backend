@@ -49,17 +49,17 @@ aborted with a retryable error, surfaced as `django.db.OperationalError`
 - **`atomic()` blocks are not retried automatically.** Neither the driver (it
   cannot replay a multi-statement interactive transaction) nor Django (which has
   no built-in transaction retry) retries them. Retrying is the application's
-  responsibility: catch `OperationalError` and re-run the whole block.
+  responsibility — use the [`ydb_backend.retry`](RETRIES.md) helper, which
+  retries only YDB-retriable errors using the native SDK policy:
 
 ```python
-from django.db import OperationalError, transaction
+from django.db import transaction
+from ydb_backend.retry import retry_ydb_errors
 
-for attempt in range(3):
-    try:
-        with transaction.atomic():
-            ...  # reads and writes
-        break
-    except OperationalError:
-        if attempt == 2:
-            raise
+@retry_ydb_errors(idempotent=True)  # the transaction re-reads before writing
+def transfer():
+    with transaction.atomic():
+        ...  # reads and writes
 ```
+
+See [Retries](RETRIES.md) for idempotency rules, tuning and the full API.

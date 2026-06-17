@@ -1,0 +1,10 @@
+.git
+.django-src
+.ruff_cache
+.pytest_cache
+**/__pycache__
+*.pyc
+docs
+conformance
+examples
+poetry.lock
