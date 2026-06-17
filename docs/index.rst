@@ -58,6 +58,7 @@ Documentation
    CONTRIB
    OPERATIONS
    TRANSACTIONS
+   RETRIES
 
 
 Indices and tables
