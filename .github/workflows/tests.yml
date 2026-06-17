@@ -17,17 +17,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `coverage: true` marks one job per Django version (4.2/5.2/6.0) as the
+        # coverage source. Coverage only varies by Django version (e.g. the
+        # django.VERSION >= (6, 0) branch in creation.py), not by Python, so one
+        # job per Django version is enough; Codecov merges the three uploads.
         include:
           - python-version: "3.10"
             django-version: "4.2"
           - python-version: "3.12"
             django-version: "4.2"
+            coverage: true
           - python-version: "3.10"
             django-version: "5.2"
           - python-version: "3.12"
             django-version: "5.2"
+            coverage: true
           - python-version: "3.12"
             django-version: "6.0"
+            coverage: true
           - python-version: "3.13"
             django-version: "6.0"
 
@@ -55,18 +62,27 @@ jobs:
         run: docker compose up -d --wait
 
       - name: Run tests
-        run: poetry run coverage run tests/runtests.py
+        # Only instrument under coverage on the designated coverage jobs; the
+        # rest run the suite directly to avoid the instrumentation overhead.
+        run: |
+          if [ "${{ matrix.coverage }}" = "true" ]; then
+            poetry run coverage run tests/runtests.py
+          else
+            poetry run python tests/runtests.py
+          fi
 
       - name: Generate coverage report
+        if: ${{ matrix.coverage }}
         run: poetry run coverage xml
 
       - name: Upload coverage to Codecov
+        if: ${{ matrix.coverage }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
-          flags: py${{ matrix.python-version }}-dj${{ matrix.django-version }}
-          name: py${{ matrix.python-version }}-dj${{ matrix.django-version }}
+          flags: dj${{ matrix.django-version }}
+          name: dj${{ matrix.django-version }}
           # Codecov outages should not fail the test gate; coverage is an
           # informational signal, not a correctness check.
           fail_ci_if_error: false

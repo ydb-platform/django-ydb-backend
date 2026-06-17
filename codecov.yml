@@ -1,6 +1,13 @@
 # Codecov configuration.
 # https://docs.codecov.com/docs/codecovyml-reference
 
+codecov:
+  notify:
+    # One job per Django version (4.2/5.2/6.0) uploads coverage; wait for all
+    # three before computing statuses so the reported number doesn't flap as
+    # uploads trickle in.
+    after_n_builds: 3
+
 coverage:
   status:
     project:
@@ -14,8 +21,8 @@ coverage:
         target: auto
         threshold: 1%
 
-# Each test matrix entry uploads with its own py<ver>-dj<ver> flag; merge them
-# into the project total without requiring every flag on every commit.
+# One job per Django version uploads with a dj<ver> flag; merge them into the
+# project total without requiring every flag on every commit.
 flag_management:
   default_rules:
     carryforward: true
