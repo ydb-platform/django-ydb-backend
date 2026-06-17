@@ -21,11 +21,12 @@ coverage:
         target: auto
         threshold: 1%
 
-# One job per Django version uploads with a dj<ver> flag; merge them into the
-# project total without requiring every flag on every commit.
+# One job per Django version uploads with a dj<ver> flag on every run, so there
+# is nothing to carry forward; keeping it off avoids dragging stale flags into
+# the session count.
 flag_management:
   default_rules:
-    carryforward: true
+    carryforward: false
 
 comment:
   layout: "reach, diff, flags, files"
