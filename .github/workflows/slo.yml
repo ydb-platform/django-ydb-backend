@@ -1,45 +1,48 @@
 name: SLO
 
-# SLO runs are expensive (a 6-node YDB cluster + chaos), so they are opt-in:
-# add the "SLO" label to a PR to trigger a run. The label is removed when the
-# run finishes, so re-adding it starts a fresh run.
 on:
   pull_request:
-    types: [labeled]
-  workflow_dispatch:
-    inputs:
-      github_issue:
-        description: "PR number to post the SLO report to"
-        required: false
-      workload_duration:
-        description: "Workload duration in seconds"
-        required: false
-        default: "600"
+    types: [opened, reopened, synchronize, labeled]
 
 permissions:
   contents: read
+  pull-requests: write
+  checks: write
 
 jobs:
-  ydb-slo-test:
-    name: Run SLO (${{ matrix.scenario }})
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'SLO' }}
+  ydb-slo-action:
+    if: contains(github.event.pull_request.labels.*.name, 'SLO')
+
+    name: Run YDB SLO Tests
     runs-on: "large-runner-django-ydb-backend"
+
     strategy:
       fail-fast: false
       matrix:
-        # kv: point get/upsert; query: range scan + transactional read-modify-write.
-        scenario: [kv, query]
+        scenario:
+          - name: kv
+            command: "--scenario kv"
+          - name: query
+            command: "--scenario query"
+
+    concurrency:
+      group: slo-${{ github.ref }}-${{ matrix.scenario.name }}
+      cancel-in-progress: true
+
     steps:
-      - name: Install docker tooling (yq, buildx, compose)
+      - name: Install dependencies
         run: |
+          set -euxo pipefail
           YQ_VERSION=v4.48.2
           BUILDX_VERSION=0.30.1
           COMPOSE_VERSION=2.40.3
 
-          sudo curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          sudo curl -fLo /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
 
           sudo mkdir -p /usr/local/lib/docker/cli-plugins
+
           sudo curl -fLo /usr/local/lib/docker/cli-plugins/docker-buildx \
             "https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-amd64"
           sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
@@ -48,65 +51,77 @@ jobs:
             "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64"
           sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-      - name: Checkout
+          yq --version
+          docker --version
+          docker buildx version
+          docker compose version
+
+      - name: Checkout current backend version
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          path: current
+          fetch-depth: 0
 
-      - name: Build workload image
-        run: docker build -f tests/slo/Dockerfile -t django-ydb-slo:current .
+      - name: Determine baseline commit
+        id: baseline
+        working-directory: current
+        run: |
+          set -euo pipefail
+          BASELINE=$(git merge-base HEAD origin/main)
+          echo "sha=${BASELINE}" >> "$GITHUB_OUTPUT"
 
-      - name: Run SLO workload
+          if git merge-base --is-ancestor "${BASELINE}" origin/main && \
+             [ "$(git rev-parse origin/main)" = "${BASELINE}" ]; then
+            BASELINE_REF="main"
+          else
+            BRANCH=$(git branch -r --contains "${BASELINE}" | grep -v HEAD | head -1 | sed 's|.*/||' || echo "")
+            if [ -n "${BRANCH}" ]; then
+              BASELINE_REF="${BRANCH}@${BASELINE:0:7}"
+            else
+              BASELINE_REF="${BASELINE:0:7}"
+            fi
+          fi
+          echo "ref=${BASELINE_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout baseline backend version
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.baseline.outputs.sha }}
+          path: baseline
+          fetch-depth: 1
+
+      - name: Build workload images (current + baseline)
+        run: |
+          set -euxo pipefail
+
+          # Build current: backend + workload runner both from this PR.
+          docker build \
+            -f "$GITHUB_WORKSPACE/current/tests/slo/Dockerfile" \
+            -t "ydb-app-current" \
+            "$GITHUB_WORKSPACE/current"
+
+          # Build baseline: baseline backend with the current workload runner
+          # (Dockerfile + tests/slo/), so the runner-side contract changes
+          # (entrypoint, metrics format) apply uniformly to both images.
+          rm -rf "$GITHUB_WORKSPACE/baseline/tests/slo"
+          cp -r  "$GITHUB_WORKSPACE/current/tests/slo" \
+                 "$GITHUB_WORKSPACE/baseline/tests/slo"
+          docker build \
+            -f "$GITHUB_WORKSPACE/baseline/tests/slo/Dockerfile" \
+            -t "ydb-app-baseline" \
+            "$GITHUB_WORKSPACE/baseline"
+
+      - name: Run SLO Tests
         uses: ydb-platform/ydb-slo-action/init@v2
         timeout-minutes: 30
         with:
+          github_issue: ${{ github.event.pull_request.number }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_issue: ${{ github.event.inputs.github_issue }}
-          workload_name: django-${{ matrix.scenario }}
-          workload_duration: ${{ github.event.inputs.workload_duration || '600' }}
+          workload_name: ${{ matrix.scenario.name }}
+          workload_duration: "600"
           workload_current_ref: ${{ github.head_ref || github.ref_name }}
-          workload_current_image: django-ydb-slo:current
-          workload_current_command: --scenario ${{ matrix.scenario }}
-          # Single-version run: there is no baseline workload image to compare
-          # against, so the baseline profile stays off.
-          disable_compose_profiles: workload-baseline
-
-  ydb-slo-report:
-    name: Publish YDB SLO report
-    needs: ydb-slo-test
-    # Still publish whatever was collected if the workload run failed mid-way,
-    # but stay skipped for unrelated labels.
-    if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event.label.name == 'SLO') }}
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Publish report
-        uses: ydb-platform/ydb-slo-action/report@v2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_run_id: ${{ github.run_id }}
-          github_issue: ${{ github.event.inputs.github_issue }}
-
-  remove-slo-label:
-    name: Remove SLO label
-    needs: [ydb-slo-test, ydb-slo-report]
-    if: ${{ always() && github.event_name == 'pull_request' && github.event.label.name == 'SLO' }}
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Remove SLO label
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api -X DELETE \
-            "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/SLO" \
-            || echo "Label 'SLO' was not present"
+          workload_current_image: ydb-app-current
+          workload_current_command: ${{ matrix.scenario.command }}
+          workload_baseline_ref: ${{ steps.baseline.outputs.ref }}
+          workload_baseline_image: ydb-app-baseline
+          workload_baseline_command: ${{ matrix.scenario.command }}
