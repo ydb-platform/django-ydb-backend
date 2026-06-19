@@ -140,6 +140,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_parentheses_in_compound = False
     requires_compound_order_by_subquery = False
 
+    # YQL has a native XOR operator, so Django emits "a XOR b" directly rather
+    # than the MOD()-based emulation (YDB has no MOD() builtin).
+    supports_logical_xor = True
+
     # Does the backend support window expressions (expression OVER (...))?
     supports_over_clause = True
     # YDB supports ROWS BETWEEN N PRECEDING/FOLLOWING, but RANGE with bounded
