@@ -29,6 +29,12 @@ fi
 
 export PYTHONPATH="$REPO_ROOT"
 export DJANGO_TEST_DB_SUFFIX="${DJANGO_TEST_DB_SUFFIX:-conformance}"
+# The backend can clone the test database (features.can_clone_databases), so the
+# suite runs with --parallel. Default to a single process: on macOS,
+# multiprocessing uses "spawn", where workers don't inherit the
+# django_test_skips monkeypatches and skipped tests would re-run and fail. CI
+# (Linux, fork) sets DJANGO_TEST_PROCESSES > 1 to fan out.
+export DJANGO_TEST_PROCESSES="${DJANGO_TEST_PROCESSES:-1}"
 
 cd "$SRC/tests"
 exec "$PY" runtests.py --settings=conformance.settings "$@"

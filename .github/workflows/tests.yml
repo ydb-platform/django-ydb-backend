@@ -151,7 +151,50 @@ jobs:
       - name: Start YDB
         run: docker compose up -d --wait
 
-      - name: Conformance — core and relation modules
-        run: >-
-          conformance/run.sh basic lookup
-          select_related many_to_one one_to_one m2m_through
+      - name: Conformance — core, relation, and data modules
+        env:
+          # Fan out across the runner's CPUs: the backend clones the test
+          # database per worker (features.can_clone_databases). Linux runners
+          # use multiprocessing "fork", so workers inherit the
+          # django_test_skips monkeypatches.
+          DJANGO_TEST_PROCESSES: "4"
+        run: |
+          set -o pipefail
+          conformance/run.sh \
+            basic lookup or_lookups string_lookup xor_lookups \
+            select_related select_related_onetoone many_to_one \
+            one_to_one many_to_one_null known_related_objects reverse_lookup \
+            mutually_referential null_fk null_fk_ordering \
+            m2m_through m2m_intermediary m2m_multiple m2m_recursive \
+            m2m_signals m2m_through_regress m2o_recursive m2m_and_m2o m2m_regress \
+            many_to_many foreign_object \
+            custom_managers custom_pk custom_lookups defer defer_regress \
+            properties get_object_or_404 get_or_create force_insert_update \
+            update update_only_fields bulk_create null_queries extra_regress \
+            ordering order_with_respect_to model_regress model_indexes indexes \
+            get_earliest_or_latest swappable_models distinct_on_fields \
+            from_db_value managers_regress queryset_pickle \
+            dates datatypes db_typecasts \
+            2>&1 | tee "${RUNNER_TEMP:-/tmp}/conformance.out"
+
+      - name: Publish conformance pass-rate
+        if: always()
+        run: |
+          out="${RUNNER_TEMP:-/tmp}/conformance.out"
+          [ -f "$out" ] || exit 0
+          # unittest writes its summary to stderr (captured above). "Ran N"
+          # counts every test including skipped, so passed = ran - skipped -
+          # failures - errors.
+          ran=$(grep -oE 'Ran [0-9]+ test' "$out" | tail -1 | grep -oE '[0-9]+' || echo 0)
+          summary=$(grep -E '^(OK|FAILED)' "$out" | tail -1 || echo "")
+          num() { printf '%s' "$1" | grep -oE "$2=[0-9]+" | grep -oE '[0-9]+' || echo 0; }
+          skipped=$(num "$summary" skipped); fails=$(num "$summary" failures); errs=$(num "$summary" errors)
+          passed=$(( ran - skipped - fails - errs ))
+          rate=$(awk "BEGIN{ if ($ran>0) printf \"%.1f\", 100*$passed/$ran; else print 0 }")
+          {
+            echo "### Conformance — Django ${{ steps.django.outputs.version }}, Python ${{ matrix.python-version }}"
+            echo ""
+            echo "| Ran | Passed | Skipped | Failures | Errors | Pass-rate |"
+            echo "|----:|-------:|--------:|---------:|-------:|----------:|"
+            echo "| $ran | $passed | $skipped | $fails | $errs | ${rate}% |"
+          } >> "$GITHUB_STEP_SUMMARY"

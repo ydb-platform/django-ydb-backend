@@ -3,9 +3,11 @@ import json
 import warnings
 
 from django.db.backends.base.operations import BaseDatabaseOperations
+from django.db.models.functions import Lower
 from django.db.models.functions import Now
 from django.db.models.functions import Pi
 from django.db.models.functions import Substr
+from django.db.models.functions import Upper
 from django.db.models.lookups import PatternLookup
 
 
@@ -50,6 +52,35 @@ def _pi_as_ydb(self, compiler, connection, **extra_context):
 
 
 Pi.as_ydb = _pi_as_ydb
+
+
+def _upper_as_ydb(self, compiler, connection, **extra_context):
+    # YQL has no UPPER built-in (Upper's default %(function)s template emits
+    # UPPER(), which YDB rejects). CharField/TextField map to Utf8, so use the
+    # Utf8-native Unicode::ToUpper (String::AsciiToUpper is String-only).
+    return self.as_sql(
+        compiler,
+        connection,
+        template="Unicode::ToUpper(%(expressions)s)",
+        **extra_context,
+    )
+
+
+Upper.as_ydb = _upper_as_ydb
+
+
+def _lower_as_ydb(self, compiler, connection, **extra_context):
+    # YQL has no LOWER built-in; use the Utf8-native Unicode::ToLower,
+    # consistent with the iregex pattern handling below.
+    return self.as_sql(
+        compiler,
+        connection,
+        template="Unicode::ToLower(%(expressions)s)",
+        **extra_context,
+    )
+
+
+Lower.as_ydb = _lower_as_ydb
 
 
 _pattern_lookup_as_sql = PatternLookup.as_sql
