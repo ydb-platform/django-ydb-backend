@@ -94,6 +94,12 @@ jobs:
     # rather than being hidden behind continue-on-error.
     runs-on: ubuntu-latest
 
+    # Collect the backend's coverage while it runs Django's suite; the
+    # concurrent groups each write a parallel data file here for `coverage
+    # combine` to merge (uploaded to Codecov alongside the integration job's).
+    env:
+      COVERAGE_FILE: ${{ github.workspace }}/.coverage
+
     concurrency:
       group: conformance-${{ github.ref }}-${{ matrix.python-version }}-${{ matrix.django-version }}
       cancel-in-progress: true
@@ -151,6 +157,8 @@ jobs:
         run: docker compose up -d --wait
 
       - name: Conformance — core, relation, and data modules
+        env:
+          CONFORMANCE_COVERAGE: "1"
         run: |
           set -uo pipefail
           tmp="${RUNNER_TEMP:-/tmp}"
@@ -224,3 +232,21 @@ jobs:
             echo "|----:|-------:|--------:|---------:|-------:|----------:|"
             echo "| $ran | $passed | $skipped | $fails | $errs | ${rate}% |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Combine conformance coverage
+        if: always()
+        run: |
+          # The concurrent groups each wrote a parallel data file ($COVERAGE_FILE.*).
+          poetry run coverage combine || true
+          poetry run coverage xml || true
+
+      - name: Upload conformance coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: dj${{ matrix.django-version }}
+          name: conformance-dj${{ matrix.django-version }}
+          # Coverage is informational; a Codecov hiccup must not fail the gate.
+          fail_ci_if_error: false

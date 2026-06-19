@@ -31,4 +31,13 @@ export PYTHONPATH="$REPO_ROOT"
 export DJANGO_TEST_DB_SUFFIX="${DJANGO_TEST_DB_SUFFIX:-conformance}"
 
 cd "$SRC/tests"
+# Optionally measure the backend's coverage while exercising it against
+# Django's own suite. --parallel-mode lets the concurrent groups each write a
+# separate data file for the caller to `coverage combine`; the source/omit
+# config (and repo-relative paths) come from pyproject.toml.
+if [ -n "${CONFORMANCE_COVERAGE:-}" ]; then
+    exec "$PY" -m coverage run --parallel-mode \
+        --rcfile="$REPO_ROOT/pyproject.toml" \
+        runtests.py --settings=conformance.settings "$@"
+fi
 exec "$PY" runtests.py --settings=conformance.settings "$@"

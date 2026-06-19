@@ -44,6 +44,14 @@ branch = true
 relative_files = true
 omit = ["*/__pycache__/*"]
 
+[tool.coverage.paths]
+# `coverage combine` canonicalises file paths via these patterns. The
+# conformance job runs Django's runtests.py from .django-src/tests, so its
+# relative paths to the backend (e.g. ../../ydb_backend/...) differ from the
+# integration job's (run from the repo root). Map both onto the repo-relative
+# path so Codecov merges the two suites' coverage of the same files.
+source = ["ydb_backend/", "*ydb_backend/"]
+
 [tool.coverage.report]
 show_missing = true
 
