@@ -5,10 +5,6 @@ from django.utils.functional import cached_property
 class DatabaseFeatures(BaseDatabaseFeatures):
     # An optional tuple indicating the minimum supported database version.
     minimum_database_version = (20,)
-    # The test runner can clone the test database per worker (each clone is an
-    # isolated table-path prefix built by creation._clone_test_db), so the
-    # bundled suite can run with --parallel.
-    can_clone_databases = True
     # YDB has no functional-dependency GROUP BY: every selected non-aggregated
     # column must appear in GROUP BY, so Django cannot group by the primary key
     # alone while selecting its other columns.

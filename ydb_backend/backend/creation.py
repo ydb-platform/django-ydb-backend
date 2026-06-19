@@ -101,52 +101,6 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
         self._set_test_table_path_prefix(test_database_path)
         return test_database_path
 
-    def get_test_db_clone_settings(self, suffix):
-        # Each parallel worker connects to its own table-path prefix. The base
-        # implementation only changes NAME; carry the clone's prefix in OPTIONS
-        # so get_connection_params points the worker at the cloned tables.
-        settings_dict = super().get_test_db_clone_settings(suffix)
-        clone_path = self._get_test_database_path(settings_dict["NAME"])
-        settings_dict["OPTIONS"] = {
-            **settings_dict.get("OPTIONS", {}),
-            "ydb_table_path_prefix": clone_path,
-        }
-        return settings_dict
-
-    def _clone_test_db(self, suffix, verbosity, keepdb=False):
-        # YDB has no "CREATE DATABASE ... TEMPLATE", and a test "database" here
-        # is just a table-path prefix. Clone by server-side-copying every table
-        # from the main test DB's prefix into the worker's prefix -- a fast
-        # metadata operation (copy_tables also brings indexes and the post-
-        # migrate baseline data), far cheaper than re-running migrate per
-        # worker. This is what lets the bundled suite run with --parallel
-        # (features.can_clone_databases).
-        # NAME is the main test database name here (create_test_db copied it
-        # into settings_dict); the clone's NAME is that plus the suffix.
-        source_path = self._get_test_database_path(
-            self.connection.settings_dict["NAME"]
-        )
-        clone_path = self._get_test_database_path(
-            self.get_test_db_clone_settings(suffix)["NAME"]
-        )
-
-        connection = self._get_prefixed_connection(source_path)
-        try:
-            table_names = connection.get_table_names()
-            driver = connection._driver
-            driver.scheme_client.make_directory(clone_path)
-            if not keepdb:
-                self._drop_test_tables(clone_path)
-            if table_names:
-                driver.table_client.copy_tables(
-                    [
-                        (f"{source_path}/{name}", f"{clone_path}/{name}")
-                        for name in table_names
-                    ]
-                )
-        finally:
-            connection.close()
-
     def _destroy_test_db(self, test_database_name, verbosity):
         test_database_path = self._get_test_database_path(test_database_name)
         self._drop_test_tables(test_database_path)
