@@ -221,34 +221,38 @@ class DatabaseOperations(BaseDatabaseOperations):
     # Mapping of Field.get_internal_type() (typically the model field's class
     # name) to the data type to use for the Cast() function, if different from
     # DatabaseWrapper.data_types.
+    # Django's Cast.cast_db_type() expects the bare target type here (it wraps
+    # it in "CAST(<expr> AS <db_type>)" itself) and formats the string with the
+    # field's db_type_parameters -- so an embedded "%(expression)s" raised
+    # KeyError and broke every Cast(). Only DecimalField's max_digits/
+    # decimal_places are valid db_type_parameters.
     cast_data_types = {
-        "SmallAutoField": "CAST(%(expression)s AS Int16)",
-        "AutoField": "CAST(%(expression)s AS Int32)",
-        "BigAutoField": "CAST(%(expression)s AS Int64)",
-        "BinaryField": "CAST(%(expression)s AS String)",
-        "BooleanField": "CAST(%(expression)s AS Bool)",
-        "CharField": "CAST(%(expression)s AS Utf8)",
-        "DateField": "CAST(%(expression)s AS Date32)",
-        "DateTimeField": "CAST(%(expression)s AS Timestamp64)",
-        "DecimalField": "CAST(%(expression)s AS "
-        "Decimal(%(max_digits)s, %(decimal_places)s))",
-        "DurationField": "CAST(%(expression)s AS Interval)",
-        "FileField": "CAST(%(expression)s AS String)",
-        "FilePathField": "CAST(%(expression)s AS Utf8)",
-        "FloatField": "CAST(%(expression)s AS Float)",
-        "DoubleField": "CAST(%(expression)s AS Double)",
-        "IntegerField": "CAST(%(expression)s AS Int32)",
-        "BigIntegerField": "CAST(%(expression)s AS Int64)",
-        "IPAddressField": "CAST(%(expression)s AS Utf8)",
-        "GenericIPAddressField": "CAST(%(expression)s AS Utf8)",
-        "NullBooleanField": "CAST(%(expression)s AS Bool)",
-        "JSONField": "CAST(%(expression)s AS Json)",
-        "PositiveIntegerField": "CAST(%(expression)s AS Uint32)",
-        "PositiveSmallIntegerField": "CAST(%(expression)s AS Uint16)",
-        "PositiveBigIntegerField": "CAST(%(expression)s AS Uint64)",
-        "SmallIntegerField": "CAST(%(expression)s AS Int16)",
-        "TextField": "CAST(%(expression)s AS Utf8)",
-        "UUIDField": "CAST(%(expression)s AS UUID)",
+        "SmallAutoField": "Int16",
+        "AutoField": "Int32",
+        "BigAutoField": "Int64",
+        "BinaryField": "String",
+        "BooleanField": "Bool",
+        "CharField": "Utf8",
+        "DateField": "Date32",
+        "DateTimeField": "Timestamp64",
+        "DecimalField": "Decimal(%(max_digits)s, %(decimal_places)s)",
+        "DurationField": "Interval",
+        "FileField": "Utf8",
+        "FilePathField": "Utf8",
+        "FloatField": "Float",
+        "DoubleField": "Double",
+        "IntegerField": "Int32",
+        "BigIntegerField": "Int64",
+        "IPAddressField": "Utf8",
+        "GenericIPAddressField": "Utf8",
+        "NullBooleanField": "Bool",
+        "JSONField": "Json",
+        "PositiveIntegerField": "Uint32",
+        "PositiveSmallIntegerField": "Uint16",
+        "PositiveBigIntegerField": "Uint64",
+        "SmallIntegerField": "Int16",
+        "TextField": "Utf8",
+        "UUIDField": "UUID",
     }
 
     # Integer field safe ranges by `internal_type` as documented

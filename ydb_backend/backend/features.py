@@ -442,6 +442,40 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "ordering.tests.OrderingTests.test_orders_nulls_first_on_filtered_subquery",
             "ordering.tests.OrderingTests.test_random_ordering",
         },
+        # --- Django 5.2/6.0-only failures (#72 cross-version triage). ---
+        "Multi-table-inheritance saves run as TransactionTestCase (YDB has no "
+        "savepoints), so assertNumQueries also counts the per-save BEGIN/COMMIT.": {
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_diamond_mti",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_false",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_false_with_existing_parent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_parent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_with_existing_grandparent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_with_grandparent",
+        },
+        "YDB's IN rejects a multi-column subquery source, so composite-key "
+        "tuple lookups (a, b) IN (subquery) are unsupported.": {
+            "foreign_object.test_tuple_lookups.TupleLookupsTests."
+            "test_in_subquery",
+            "foreign_object.test_tuple_lookups.TupleLookupsTests."
+            "test_tuple_in_subquery",
+        },
+        "YDB forbids '.' in a column name, and rejects ORDER BY a constant "
+        "expression.": {
+            "ordering.tests.OrderingTests."
+            "test_alias_with_period_shadows_table_name",
+            "ordering.tests.OrderingTests.test_order_by_case_when_constant_value",
+        },
+        "The test's custom lookup concatenates lhs_params + rhs_params assuming "
+        "both are lists; YDB returns subquery params as a tuple (the test itself "
+        "notes the resilient (*lhs, *rhs) form).": {
+            "custom_lookups.tests.LookupTests.test_custom_lookup_with_subquery",
+        },
     }
 
     supports_transactions = True
