@@ -25,7 +25,8 @@ class DatabaseCreation(BaseDatabaseCreation, ABC):
         # only exist on some versions. The base implementation calls
         # import_string() on each (the test app is installed) and would crash
         # setup; tolerate entries whose class or method is absent here.
-        from unittest import expectedFailure, skip
+        from unittest import expectedFailure
+        from unittest import skip
 
         def patch(test_name, wrapper):
             case_name, _, method_name = test_name.rpartition(".")
