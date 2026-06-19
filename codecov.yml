@@ -3,10 +3,10 @@
 
 codecov:
   notify:
-    # One job per Django version (4.2/5.2/6.0) uploads coverage; wait for all
-    # three before computing statuses so the reported number doesn't flap as
-    # uploads trickle in.
-    after_n_builds: 3
+    # Six coverage uploads per run: the integration job and the conformance job
+    # each upload once per Django version (4.2/5.2/6.0). Wait for all of them
+    # before computing statuses so the number doesn't flap as uploads trickle in.
+    after_n_builds: 6
 
 coverage:
   status:
