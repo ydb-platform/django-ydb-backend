@@ -53,6 +53,50 @@ class TestDatabaseOperations(SimpleTestCase):
         self.assertEqual(sql_dttm, "DateTime::GetHour(column_name)")
         self.assertListEqual(params_dt, [])
 
+    def test_date_extract_sql_all_lookups(self):
+        cases = {
+            "year": "DateTime::GetYear(c)",
+            "day_of_year": "DateTime::GetDayOfYear(c)",
+            "month": "DateTime::GetMonth(c)",
+            "month_name": "DateTime::GetMonthName(c)",
+            "week_of_year": "DateTime::GetWeekOfYear(c)",
+            "iso_week_of_year": "DateTime::GetWeekOfYearIso8601(c)",
+            "day": "DateTime::GetDayOfMonth(c)",
+            "day_of_month": "DateTime::GetDayOfMonth(c)",
+            "day_of_week": "DateTime::GetDayOfWeek(c)",
+            "day_of_week_name": "DateTime::GetDayOfWeekName(c)",
+            "week_day": "((DateTime::GetDayOfWeek(c) % 7) + 1)",
+            "iso_week_day": "DateTime::GetDayOfWeek(c)",
+            "week": "DateTime::GetWeekOfYearIso8601(c)",
+            "quarter": "((DateTime::GetMonth(c) - 1) / 3 + 1)",
+        }
+        for lookup, expected in cases.items():
+            with self.subTest(lookup=lookup):
+                sql, params = connection.ops.date_extract_sql(lookup, "c", [])
+                self.assertEqual(sql, expected)
+                self.assertEqual(params, [])
+        with self.assertRaisesMessage(ValueError, "Unsupported lookup type"):
+            connection.ops.date_extract_sql("nope", "c", [])
+
+    def test_datetime_extract_sql_all_lookups(self):
+        cases = {
+            "hour": "DateTime::GetHour(c)",
+            "minute": "DateTime::GetMinute(c)",
+            "second": "DateTime::GetSecond(c)",
+            "millisecond": "DateTime::GetMillisecondOfSecond(c)",
+            "microsecond": "DateTime::GetMicrosecondOfSecond(c)",
+            "timezone_id": "DateTime::GetTimezoneId(c)",
+            "timezone_name": "DateTime::GetTimezoneName(c)",
+            # Delegated to the shared date extractor.
+            "year": "DateTime::GetYear(c)",
+        }
+        for lookup, expected in cases.items():
+            with self.subTest(lookup=lookup):
+                sql, _ = connection.ops.datetime_extract_sql(lookup, "c", [], None)
+                self.assertEqual(sql, expected)
+        with self.assertRaisesMessage(ValueError, "Unsupported lookup type"):
+            connection.ops.datetime_extract_sql("nope", "c", [], None)
+
     def test_trunc(self):
         sql_dt, params_dt = connection.ops.date_trunc_sql("year", "column_name", [])
         sql_dttm, params_dttm = connection.ops.datetime_trunc_sql(

@@ -94,6 +94,12 @@ jobs:
     # rather than being hidden behind continue-on-error.
     runs-on: ubuntu-latest
 
+    # Collect the backend's coverage while it runs Django's suite; the
+    # concurrent groups each write a parallel data file here for `coverage
+    # combine` to merge (uploaded to Codecov alongside the integration job's).
+    env:
+      COVERAGE_FILE: ${{ github.workspace }}/.coverage
+
     concurrency:
       group: conformance-${{ github.ref }}-${{ matrix.python-version }}-${{ matrix.django-version }}
       cancel-in-progress: true
@@ -101,17 +107,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Conformance exercises the backend's SQL generation against Django's
+        # ORM, which does not vary by Python version -- so one Python per
+        # Django version is enough (the integration job keeps the full
+        # Python x Django matrix). Cover the supported range: 4.2/5.2 LTS and
+        # the latest 6.0.
         include:
           - python-version: "3.10"
             django-version: "4.2"
           - python-version: "3.12"
-            django-version: "4.2"
-          - python-version: "3.10"
             django-version: "5.2"
-          - python-version: "3.12"
-            django-version: "5.2"
-          - python-version: "3.12"
-            django-version: "6.0"
           - python-version: "3.13"
             django-version: "6.0"
 
@@ -151,7 +156,97 @@ jobs:
       - name: Start YDB
         run: docker compose up -d --wait
 
-      - name: Conformance — core and relation modules
-        run: >-
-          conformance/run.sh basic lookup
-          select_related many_to_one one_to_one m2m_through
+      - name: Conformance — core, relation, and data modules
+        env:
+          CONFORMANCE_COVERAGE: "1"
+        run: |
+          set -uo pipefail
+          tmp="${RUNNER_TEMP:-/tmp}"
+          # Ensure the Django source tree exists once up front; run.sh would
+          # otherwise clone it lazily, racing across the concurrent groups
+          # below on a cache miss.
+          src="$GITHUB_WORKSPACE/.django-src"
+          py="$(poetry env info -p)/bin/python"
+          dj="$("$py" -c 'import django; print(django.get_version())')"
+          if [ "$(cat "$src/.version" 2>/dev/null || true)" != "$dj" ]; then
+            rm -rf "$src"
+            git clone --quiet --depth 1 --branch "$dj" \
+              https://github.com/django/django.git "$src"
+            echo "$dj" > "$src/.version"
+          fi
+          # Run the gate as three concurrent groups, each in its own test-DB
+          # prefix (DJANGO_TEST_DB_SUFFIX). Tables are divided across groups,
+          # not duplicated, so YDB's per-database path limit holds while the
+          # runner's CPUs work in parallel -- ~5x faster than one serial run.
+          g1="basic lookup or_lookups string_lookup xor_lookups select_related \
+            select_related_onetoone many_to_one one_to_one many_to_one_null \
+            known_related_objects reverse_lookup mutually_referential null_fk \
+            null_fk_ordering get_or_create"
+          g2="m2m_through m2m_intermediary m2m_multiple m2m_recursive m2m_signals \
+            m2m_through_regress m2o_recursive m2m_and_m2o m2m_regress many_to_many \
+            foreign_object custom_managers custom_pk custom_lookups defer \
+            defer_regress ordering"
+          g3="properties get_object_or_404 force_insert_update update \
+            update_only_fields bulk_create null_queries extra_regress \
+            order_with_respect_to model_regress model_indexes indexes \
+            get_earliest_or_latest swappable_models distinct_on_fields \
+            from_db_value managers_regress queryset_pickle dates datatypes \
+            db_typecasts"
+          i=0; pids=""
+          for g in "$g1" "$g2" "$g3"; do
+            i=$((i + 1))
+            DJANGO_TEST_DB_SUFFIX="conf$i" conformance/run.sh $g \
+              > "$tmp/conf$i.out" 2>&1 &
+            pids="$pids $!"
+          done
+          rc=0
+          for p in $pids; do wait "$p" || rc=1; done
+          for f in "$tmp"/conf*.out; do
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
+          done
+          exit "$rc"
+
+      - name: Publish conformance pass-rate
+        if: always()
+        run: |
+          tmp="${RUNNER_TEMP:-/tmp}"
+          # unittest writes its summary to stderr (captured per group above).
+          # "Ran N" counts every test including skipped, so
+          # passed = ran - skipped - failures - errors. Sum across the groups.
+          num() { printf '%s' "$2" | grep -oE "$1=[0-9]+" | grep -oE '[0-9]+' | tail -1; }
+          ran=0; skipped=0; fails=0; errs=0
+          for f in "$tmp"/conf*.out; do
+            [ -f "$f" ] || continue
+            r=$(grep -oE 'Ran [0-9]+ test' "$f" | tail -1 | grep -oE '[0-9]+'); ran=$((ran + ${r:-0}))
+            s=$(grep -E '^(OK|FAILED)' "$f" | tail -1 || true)
+            v=$(num skipped "$s"); skipped=$((skipped + ${v:-0}))
+            v=$(num failures "$s"); fails=$((fails + ${v:-0}))
+            v=$(num errors "$s"); errs=$((errs + ${v:-0}))
+          done
+          passed=$(( ran - skipped - fails - errs ))
+          rate=$(awk -v p="$passed" -v r="$ran" 'BEGIN{ r=r+0; if (r>0) printf "%.1f", 100*p/r; else print "0" }')
+          {
+            echo "### Conformance — Django ${{ steps.django.outputs.version }}, Python ${{ matrix.python-version }}"
+            echo ""
+            echo "| Ran | Passed | Skipped | Failures | Errors | Pass-rate |"
+            echo "|----:|-------:|--------:|---------:|-------:|----------:|"
+            echo "| $ran | $passed | $skipped | $fails | $errs | ${rate}% |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Combine conformance coverage
+        if: always()
+        run: |
+          # The concurrent groups each wrote a parallel data file ($COVERAGE_FILE.*).
+          poetry run coverage combine || true
+          poetry run coverage xml || true
+
+      - name: Upload conformance coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: dj${{ matrix.django-version }}
+          name: conformance-dj${{ matrix.django-version }}
+          # Coverage is informational; a Codecov hiccup must not fail the gate.
+          fail_ci_if_error: false

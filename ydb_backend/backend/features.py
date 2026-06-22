@@ -140,6 +140,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_parentheses_in_compound = False
     requires_compound_order_by_subquery = False
 
+    # YQL has a native XOR operator, so Django emits "a XOR b" directly rather
+    # than the MOD()-based emulation (YDB has no MOD() builtin).
+    supports_logical_xor = True
+
     # Does the backend support window expressions (expression OVER (...))?
     supports_over_clause = True
     # YDB supports ROWS BETWEEN N PRECEDING/FOLLOWING, but RANGE with bounded
@@ -332,6 +336,145 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "test_set_on_m2m_with_intermediate_model_value_required",
             "m2m_through.tests.M2mThroughReferentialTests."
             "test_set_on_symmetrical_m2m_with_intermediate_model",
+        },
+        # --- #72 conformance gate expansion (relations, CRUD, data; 2026-06-19). ---
+        "Correlated subqueries (OuterRef in Exists/Subquery) are unsupported.": {
+            "foreign_object.tests.MultiColumnFKTests.test_double_nested_query",
+            "foreign_object.tests.MultiColumnFKTests."
+            "test_forward_in_lookup_filters_correctly",
+            "many_to_many.tests.ManyToManyTests.test_selects",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_boolean_expression_in_Q__queryset",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_exists_kwargs_queryset_not_evaluated",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_exists_queryset_not_evaluated",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_exists_queryset_still_usable",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_subquery_queryset_not_evaluated",
+        },
+        "Non-equi JOIN ON (composite-FK/FilteredRelation); YDB needs equi-join.": {
+            "foreign_object.test_empty_join.RestrictedConditionsTests."
+            "test_restrictions_with_no_joining_columns",
+            "foreign_object.tests.MultiColumnFKTests.test_inheritance",
+            "foreign_object.tests.MultiColumnFKTests.test_translations",
+            "foreign_object.tests.TestExtraJoinFilterQ.test_extra_join_filter_q",
+            "queryset_pickle.tests.PickleabilityTestCase.test_pickle_filteredrelation",
+            "queryset_pickle.tests.PickleabilityTestCase."
+            "test_pickle_filteredrelation_m2m",
+        },
+        "Different query count on YDB (INSERT ... RETURNING); assertNumQueries.": {
+            "bulk_create.tests.BulkCreateTests.test_efficiency",
+            "bulk_create.tests.BulkCreateTests.test_explicit_batch_size_efficiency",
+            "bulk_create.tests.BulkCreateTests."
+            "test_explicit_batch_size_respects_max_batch_size",
+            "bulk_create.tests.BulkCreateTests.test_non_auto_increment_pk_efficiency",
+            "bulk_create.tests.BulkCreateTests.test_set_pk_and_insert_single_item",
+            "bulk_create.tests.BulkCreateTests.test_set_pk_and_query_efficiency",
+            "many_to_many.tests.ManyToManyTests.test_add_existing_different_type",
+            "many_to_one_null.tests.ManyToOneNullTests.test_set_clear_non_bulk",
+            "order_with_respect_to.tests.OrderWithRespectToBaseTests."
+            "test_database_routing",
+            "update_only_fields.tests.UpdateOnlyFieldsTests."
+            "test_num_queries_inheritance",
+            "update_only_fields.tests.UpdateOnlyFieldsTests."
+            "test_update_fields_fk_defer",
+            "update_only_fields.tests.UpdateOnlyFieldsTests."
+            "test_update_fields_inheritance",
+            "update_only_fields.tests.UpdateOnlyFieldsTests."
+            "test_update_fields_inheritance_defer",
+        },
+        "Unsupported on YDB (issue #72 conformance triage).": {
+            "bulk_create.tests.BulkCreateTests.test_bulk_insert_expressions",
+            "bulk_create.tests.BulkCreateTests.test_zero_as_autoval",
+            "indexes.tests.CoveringIndexTests.test_covering_index",
+            "indexes.tests.CoveringIndexTests.test_covering_partial_index",
+            "model_regress.tests.ModelTests."
+            "test_sql_insert_compiler_return_id_attribute",
+            "update.tests.AdvancedTests.test_update_negated_f_conditional_annotation",
+            "update.tests.SimpleTest.test_nonempty_update_with_inheritance",
+        },
+        "Insert of a column-less row (auto-PK-only/MTI parent) is unsupported.": {
+            "bulk_create.tests.BulkCreateTests.test_bulk_insert_nullable_fields",
+            "bulk_create.tests.BulkCreateTests.test_empty_model",
+            "bulk_create.tests.BulkCreateTests.test_nullable_fk_after_parent",
+            "bulk_create.tests.BulkCreateTests."
+            "test_nullable_fk_after_parent_bulk_create",
+            "custom_pk.tests.CustomPKTests.test_auto_field_subclass_bulk_create",
+            "custom_pk.tests.CustomPKTests.test_auto_field_subclass_create",
+            "defer.tests.DeferTests.test_defer_of_overridden_scalar",
+            "m2m_and_m2o.tests.RelatedObjectUnicodeTests."
+            "test_m2m_with_unicode_reference",
+            "m2m_regress.tests.M2MRegressionTests.test_multiple_forwards_only_m2m",
+            "many_to_many.tests.ManyToManyTests.test_inherited_models_selects",
+            "null_queries.tests.NullQueriesTests.test_reverse_relations",
+            "order_with_respect_to.tests.TestOrderWithRespectToOneToOnePK."
+            "test_set_order",
+        },
+        "Custom transform emits raw SQL (UPPER/modulo) that YQL rejects.": {
+            "custom_lookups.tests.BilateralTransformTests.test_bilateral_multi_value",
+            "custom_lookups.tests.BilateralTransformTests.test_bilateral_order",
+            "custom_lookups.tests.BilateralTransformTests.test_bilateral_upper",
+            "custom_lookups.tests.BilateralTransformTests.test_div3_bilateral_extract",
+            "custom_lookups.tests.LookupTests.test_basic_lookup",
+            "custom_lookups.tests.LookupTests.test_div3_extract",
+            "custom_lookups.tests.SubqueryTransformTests.test_subquery_usage",
+        },
+        "Requires savepoints (nested atomic), which YDB lacks.": {
+            "get_or_create.tests.GetOrCreateTestsWithManualPKs.test_savepoint_rollback",
+        },
+        "Asserts backend-specific SQL text that differs on YDB.": {
+            "custom_lookups.tests.YearLteTests.test_postgres_year_exact",
+            "custom_lookups.tests.YearLteTests.test_year_lte_sql",
+        },
+        "YDB does not enforce uniqueness; expected IntegrityError not raised.": {
+            "get_or_create.tests.GetOrCreateThroughManyToMany.test_something",
+            "get_or_create.tests.UpdateOrCreateTests.test_integrity",
+            "get_or_create.tests.UpdateOrCreateTests.test_manual_primary_key_test",
+            "get_or_create.tests.UpdateOrCreateTestsWithManualPKs."
+            "test_create_with_duplicate_primary_key",
+        },
+        "Generated YQL rejected by the server (unsupported construct).": {
+            "custom_lookups.tests.BilateralTransformTests.test_transform_order_by",
+            "extra_regress.tests.ExtraRegressTests.test_regression_8039",
+            "ordering.tests.OrderingTests.test_order_by_constant_value",
+            "ordering.tests.OrderingTests.test_orders_nulls_first_on_filtered_subquery",
+            "ordering.tests.OrderingTests.test_random_ordering",
+        },
+        # --- Django 5.2/6.0-only failures (#72 cross-version triage). ---
+        "Multi-table-inheritance saves run as TransactionTestCase (YDB has no "
+        "savepoints), so assertNumQueries also counts the per-save BEGIN/COMMIT.": {
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_diamond_mti",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_false",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_false_with_existing_parent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_parent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_with_existing_grandparent",
+            "force_insert_update.tests.ForceInsertInheritanceTests."
+            "test_force_insert_with_grandparent",
+        },
+        "YDB's IN rejects a multi-column subquery source, so composite-key "
+        "tuple lookups (a, b) IN (subquery) are unsupported.": {
+            "foreign_object.test_tuple_lookups.TupleLookupsTests."
+            "test_in_subquery",
+            "foreign_object.test_tuple_lookups.TupleLookupsTests."
+            "test_tuple_in_subquery",
+        },
+        "YDB forbids '.' in a column name, and rejects ORDER BY a constant "
+        "expression.": {
+            "ordering.tests.OrderingTests."
+            "test_alias_with_period_shadows_table_name",
+            "ordering.tests.OrderingTests.test_order_by_case_when_constant_value",
+        },
+        "The test's custom lookup concatenates lhs_params + rhs_params assuming "
+        "both are lists; YDB returns subquery params as a tuple (the test itself "
+        "notes the resilient (*lhs, *rhs) form).": {
+            "custom_lookups.tests.LookupTests.test_custom_lookup_with_subquery",
         },
     }
 

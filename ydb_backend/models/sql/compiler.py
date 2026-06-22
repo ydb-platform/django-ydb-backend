@@ -36,7 +36,10 @@ _ydb_types = {
     # midnight in an Int64.
     "TimeField": ydb.PrimitiveType.Int64,
     "DurationField": ydb.PrimitiveType.Interval,
-    "FileField": ydb.PrimitiveType.String,
+    # FileField/ImageField store a text path (ImageField's get_internal_type()
+    # is "FileField"), so they bind as Utf8 -- not String, which is for raw
+    # bytes and rejects a str ("expected bytes, str found").
+    "FileField": ydb.PrimitiveType.Utf8,
     "FilePathField": ydb.PrimitiveType.Utf8,
     "DecimalField": ydb.DecimalType(precision=22, scale=9),
     "FloatField": ydb.PrimitiveType.Float,
@@ -1056,10 +1059,16 @@ class SQLUpdateCompiler(_ParamTypingMixin, compiler.SQLUpdateCompiler):
         ORM can correctly tell an updated row from a missing one.
         """
         self.returning_fields = returning_fields
-        with self.connection.cursor() as cursor:
+        try:
             sql, params = self.as_sql()
-            if not sql:
-                return 0
+        except EmptyResultSet:
+            # An empty WHERE -- e.g. filter(pk__in=[]).update(...), which
+            # relation .set()/clear() generates -- matches no rows. Django's
+            # base compiler treats this as zero rows updated, not an error.
+            return 0
+        if not sql:
+            return 0
+        with self.connection.cursor() as cursor:
             cursor.execute(sql, params)
             rows = cursor.fetchall() if cursor.description else []
             return len(rows)

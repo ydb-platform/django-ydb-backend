@@ -18,6 +18,14 @@ if Database is None:
         "Error loading ydb_dbapi module. Install it using 'pip install ydb_dbapi'."
     )
 
+# ydb_dbapi does not expose the DB-API 2.0 ``Binary`` type constructor that
+# Django calls as ``connection.Database.Binary(value)`` in
+# BinaryField.get_db_prep_value(). Binary values map to YDB's String type,
+# whose driver representation is Python ``bytes``, so ``bytes`` is the correct
+# constructor. Guarded so a future ydb_dbapi that ships ``Binary`` wins.
+if not hasattr(Database, "Binary"):
+    Database.Binary = bytes
+
 from .client import DatabaseClient
 from .creation import DatabaseCreation
 from .features import DatabaseFeatures
@@ -71,7 +79,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "EnumField": "Enum",
 
         # TODO: Add validation for string related fields
-        "FileField": "String",
+        # FileField/ImageField store a text path, not raw bytes, so Utf8.
+        "FileField": "Utf8",
         "FilePathField": "Utf8",
         "IPAddressField": "Utf8",
         "EmailField": "Utf8",

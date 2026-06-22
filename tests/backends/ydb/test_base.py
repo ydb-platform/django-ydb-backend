@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.db.utils import NotSupportedError
 from django.test import SimpleTestCase
@@ -34,6 +35,43 @@ class TestDatabaseWrapper(SimpleTestCase):
 
     def test_is_usable(self):
         self.assertTrue(connection.is_usable())
+
+
+class TestConnectionParams(SimpleTestCase):
+    @staticmethod
+    def params(**settings):
+        return DatabaseWrapper.get_connection_params(
+            SimpleNamespace(settings_dict=settings)
+        )
+
+    def test_missing_host_raises(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "host"):
+            self.params(PORT="2136", DATABASE="/local")
+
+    def test_missing_port_raises(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "port"):
+            self.params(HOST="localhost", DATABASE="/local")
+
+    def test_missing_database_raises(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "database"):
+            self.params(HOST="localhost", PORT="2136")
+
+    def test_options_credentials_and_certificates_forwarded(self):
+        params = self.params(
+            HOST="localhost",
+            PORT="2136",
+            DATABASE="/local",
+            OPTIONS={"ydb_table_path_prefix": "/local/x"},
+            CREDENTIALS="token",
+            ROOT_CERTIFICATES_PATH="/certs/ca.pem",
+        )
+        self.assertEqual(params["host"], "localhost")
+        self.assertEqual(params["ydb_table_path_prefix"], "/local/x")
+        self.assertEqual(params["credentials"], "token")
+        self.assertEqual(params["root_certificates_path"], "/certs/ca.pem")
+
+    def test_is_usable_false_without_connection(self):
+        self.assertFalse(DatabaseWrapper.is_usable(SimpleNamespace(connection=None)))
 
 
 class TestDatabaseVersion(SimpleTestCase):
