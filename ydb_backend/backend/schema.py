@@ -15,7 +15,9 @@ from django.db.transaction import TransactionManagementError
 logger = logging.getLogger("django_ydb_backend.ydb_backend.backend.schema")
 
 
-def _quote_null() -> str:
+def _quote_null(_value=None) -> str:
+    # Accept the (unused) value so this matches the other _quote_* handlers and
+    # can be dispatched by _quote_value(None).
     return "NULL"
 
 

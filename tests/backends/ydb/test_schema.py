@@ -1,3 +1,8 @@
+from datetime import date
+from datetime import time
+from enum import Enum
+from uuid import UUID
+
 import django
 from django.db import NotSupportedError
 from django.db import connection
@@ -10,7 +15,10 @@ from django.db.models import IntegerField
 from django.db.models import Q
 from django.db.models import TextField
 from django.db.models import UniqueConstraint
+from django.test import SimpleTestCase
 from django.test import TransactionTestCase
+from ydb_backend.backend.schema import _default_literal
+from ydb_backend.backend.schema import _quote_value
 
 from ..models import DbColumnModel
 from ..models import ModelWithIndexes
@@ -369,3 +377,54 @@ class TestUnsupportedSchemaOperations(TransactionTestCase):
         with connection.schema_editor() as editor:
             editor.alter_field(MyModel, indexed, no_index)
         self.assertNotIn(["name"], index_columns())
+
+
+class _Color(Enum):
+    NUMBER = 1
+    LABEL = "red"
+
+
+class QuoteValueTests(SimpleTestCase):
+    """Pure literal-quoting helpers used by the schema editor (no database)."""
+
+    def test_quote_value_by_type(self):
+        cases = [
+            (None, "NULL"),
+            (5, "'5'"),
+            (1.5, "'1.5'"),
+            (date(2020, 1, 2), "'2020-01-02'"),
+            (time(10, 20, 30), "'10:20:30'"),
+            ("a'b", "'a''b'"),
+            ([1, "x"], "['1', 'x']"),
+            (
+                UUID("12345678-1234-5678-1234-567812345678"),
+                "'12345678-1234-5678-1234-567812345678'",
+            ),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(_quote_value(value), expected)
+
+    def test_quote_value_enum_uses_member_value(self):
+        self.assertEqual(_quote_value(_Color.NUMBER), "'1'")
+        self.assertEqual(_quote_value(_Color.LABEL), "'red'")
+
+    def test_quote_value_unsupported_type_raises(self):
+        with self.assertRaisesMessage(ValueError, "Unsupported type"):
+            _quote_value(object())
+
+
+class DefaultLiteralTests(SimpleTestCase):
+    """Column-default literal rendering (numbers and booleans unquoted)."""
+
+    def test_default_literal(self):
+        self.assertEqual(_default_literal(True), "true")
+        self.assertEqual(_default_literal(False), "false")
+        self.assertEqual(_default_literal(7), "7")
+        self.assertEqual(_default_literal(1.5), "1.5")
+        self.assertEqual(_default_literal(_Color.NUMBER), "1")
+        self.assertEqual(_default_literal("a'b"), "'a''b'")
+
+    def test_default_literal_unsupported_type_raises(self):
+        with self.assertRaisesMessage(NotSupportedError, "column default"):
+            _default_literal([1, 2])
