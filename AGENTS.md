@@ -24,7 +24,7 @@ Tests use Django’s test runner through `tests/runtests.py`, not plain `pytest`
 
 ## Commit & Pull Request Guidelines
 
-Keep commits focused on one behavior or documentation change. Pull requests should include a concise summary, test commands run, and any YDB or Django compatibility notes. Link related issues when available and include screenshots only for documentation or example app UI changes.
+Keep commits focused on one behavior or documentation change. Pull requests should include a concise summary, test commands run, and any YDB or Django compatibility notes. Link related issues when available and include screenshots only for documentation or example app UI changes. Every pull request must add a short, one-line entry to the top of `CHANGELOG.md` describing the change (a CI check enforces this); apply the `skip changelog` label for pull requests that need no entry, such as CI-only or docs-only changes.
 
 ## Security & Configuration Tips
 

@@ -1,0 +1,32 @@
+name: Changelog
+
+# Every pull request must add a short entry to CHANGELOG.md so the unreleased
+# section is never empty at release time (the publish workflow reads the entries
+# above the latest "## <version> ##" header). PRs that need no entry — CI-only,
+# docs-only, chores — carry the "skip changelog" label to bypass this check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a CHANGELOG.md entry
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip changelog') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' \
+              | grep -qx 'CHANGELOG.md'; then
+            echo "CHANGELOG.md updated — OK."
+          else
+            echo "::error::This PR does not update CHANGELOG.md — add a short one-line entry at the top of CHANGELOG.md, or apply the 'skip changelog' label if no entry is needed."
+            exit 1
+          fi
