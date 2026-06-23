@@ -30,8 +30,8 @@ with open(os.path.join(os.path.dirname(__file__), '..', 'ydb_backend',
                        'version.py')) as _version_file:
     # The full version, including alpha/beta/rc tags.
     release = re.search(r'VERSION\s*=\s*"([^"]+)"', _version_file.read()).group(1)
-# The short X.Y version.
-version = '.'.join(release.split('.')[:2])
+# Shown in the sidebar header; use the full version so beta tags are visible.
+version = release
 
 # -- General configuration ---------------------------------------------------
 
