@@ -31,7 +31,17 @@ Install:
 pip install django-ydb-backend
 ```
 
-Point a Django database at YDB in `settings.py`:
+To develop against a local database, start YDB in Docker:
+
+```shell
+docker run -d --name ydb-local --hostname localhost \
+  -p 2136:2136 -p 8765:8765 \
+  -e YDB_USE_IN_MEMORY_PDISKS=true \
+  ydbplatform/local-ydb:latest
+```
+
+This serves a ready-to-use database at `/local` on `localhost:2136` — the values
+used below. Then point a Django database at YDB in `settings.py`:
 
 ```python
 DATABASES = {
