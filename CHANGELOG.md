@@ -1,3 +1,4 @@
+* docs: restructure the docs — add a quick start, move the support tables into each topic page, slim the compatibility page, and source the docs version from the package
 * feat: native YDB `UPSERT INTO` for `YDBManager`
 * feat: type query parameters from the expression tree
 * feat: support `TimeField` and pre-1970 dates via YDB's wide signed date/time types

@@ -1,10 +1,20 @@
 Transactions
 ===
 
-> See the [support contract](SUPPORT.md#transactions) for the at-a-glance
-> support matrix. This page explains the behavior in detail.
-
 The backend maps Django's transaction API onto YDB's interactive transactions.
+
+## Support at a glance
+
+| Feature | Status | Notes |
+|---------|:------:|-------|
+| `transaction.atomic()` commit / rollback | ✅ | The body runs in a YDB interactive transaction; commit on clean exit, rollback on exception. |
+| Autocommit (outside `atomic()`) | ✅ | Each statement is its own transaction; the driver auto-retries transient errors. |
+| `SERIALIZABLE` isolation | ✅ | Optimistic concurrency; conflicts surface as `OperationalError`. |
+| Savepoints | ❌ | YDB has no savepoints (see below). |
+| Nested `atomic()` with rollback of the inner block | ❌ | Without savepoints, catching an exception inside a nested block poisons the whole transaction. |
+| Django `TestCase` | ❌ | Relies on savepoints — use `TransactionTestCase`. |
+| DDL inside `atomic()` | ❌ | YDB cannot roll back schema changes; migrations run non-atomically. |
+| Automatic retry of `atomic()` blocks | ❌ | Application responsibility — see [Retries](RETRIES.md). |
 
 ## What is supported
 
@@ -14,27 +24,25 @@ The backend maps Django's transaction API onto YDB's interactive transactions.
 - **Autocommit** — outside an `atomic()` block every statement is its own
   transaction (the default).
 - The connection stays usable after a rolled-back transaction.
-- Isolation level is `SERIALIZABLE` for interactive transactions.
-
-`supports_transactions` is `True`.
+- The isolation level is `SERIALIZABLE` for interactive transactions.
 
 ## What is not supported
 
-- **Savepoints** (`uses_savepoints = False`). YDB has no savepoints, so nested
-  `atomic()` blocks are not independent: a nested block does not create a
-  savepoint, and an exception caught *inside* a nested block marks the whole
-  transaction for rollback — further queries then raise
-  `TransactionManagementError` until the outer block ends. Let exceptions
-  propagate to the outermost `atomic()` instead of catching them mid-transaction.
+- **Savepoints.** YDB has no savepoints, so nested `atomic()` blocks are not
+  independent: a nested block does not create a savepoint, and an exception
+  caught *inside* a nested block marks the whole transaction for rollback —
+  further queries then raise `TransactionManagementError` until the outer block
+  ends. Let exceptions propagate to the outermost `atomic()` instead of catching
+  them mid-transaction.
 
-- **Django `TestCase`**. It relies on savepoints to isolate each test, so it
-  does not work here. Use **`TransactionTestCase`** (with `databases =
-  {"default"}`) for database tests.
+- **Django `TestCase`.** It relies on savepoints to isolate each test, so it
+  does not work here. Use **`TransactionTestCase`** (with
+  `databases = {"default"}`) for database tests; with `pytest-django`, mark
+  database tests `@pytest.mark.django_db(transaction=True)`.
 
-- **DDL inside `atomic()`** (`can_rollback_ddl = False`). YDB cannot roll back
-  schema changes, so running DDL inside an `atomic()` block raises
-  `TransactionManagementError`. Migrations are applied non-atomically for the
-  same reason.
+- **DDL inside `atomic()`.** YDB cannot roll back schema changes, so running DDL
+  inside an `atomic()` block raises `TransactionManagementError`. Migrations are
+  applied non-atomically for the same reason.
 
 ## Retries and conflicts
 
@@ -44,7 +52,7 @@ aborted with a retryable error, surfaced as `django.db.OperationalError`
 ("Transaction locks invalidated").
 
 - **Statements in autocommit** (outside `atomic()`) are retried automatically by
-  the YDB driver on transient/retryable errors — a single statement is its own
+  the YDB driver on transient / retryable errors — a single statement is its own
   transaction and is safe to replay.
 - **`atomic()` blocks are not retried automatically.** Neither the driver (it
   cannot replay a multi-statement interactive transaction) nor Django (which has

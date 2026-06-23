@@ -13,6 +13,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.abspath('..'))
@@ -20,13 +21,17 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'Django YDB Backend'
-copyright = '2025, Yandex'
-author = 'Yandex'
+copyright = '2026, YDB'
+author = 'YDB Team'
 
-# The short X.Y version
-version = '0.0.1'
-# The full version, including alpha/beta/rc tags
-release = '0.0.1b1'
+# The version is read from the package (ydb_backend/version.py, which the
+# release workflow updates) so the docs always match the released version.
+with open(os.path.join(os.path.dirname(__file__), '..', 'ydb_backend',
+                       'version.py')) as _version_file:
+    # The full version, including alpha/beta/rc tags.
+    release = re.search(r'VERSION\s*=\s*"([^"]+)"', _version_file.read()).group(1)
+# The short X.Y version.
+version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------
 
@@ -67,7 +72,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
