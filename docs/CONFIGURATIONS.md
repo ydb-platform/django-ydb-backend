@@ -1,8 +1,8 @@
 Configurations
----
+===
 
-To set up your Django project to use a YDB backend, you only need to modify a few of Django's built-in configuration settings. This project does not require any additional custom configuration options.
-(Summary: Just adjust standard Django settings for YDB—no extra YDB-specific configurations are needed).
+To use the YDB backend you only need to adjust a few of Django's built-in
+database settings — there are no extra YDB-specific configuration options.
 
 ### DATABASES
 

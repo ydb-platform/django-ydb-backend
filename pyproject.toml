@@ -3,6 +3,7 @@ name = "django-ydb-backend"
 version = "0.0.1b6"  # AUTOVERSION
 description = "Django backend for YDB"
 authors = [
+    {name = "YDB Team", email = "ydb@yandex-team.ru"},
     {name = "Yandex LLC", email = "ydb@yandex-team.ru"},
 ]
 readme = "README.md"

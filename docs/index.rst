@@ -1,48 +1,92 @@
 Django YDB Backend
 ==================
 
-Django database backend for `YDB <https://ydb.tech/>`_ — distributed SQL database.
+A Django database backend for `YDB <https://ydb.tech/>`_, a distributed SQL
+database. It lets Django applications use YDB through the standard ORM —
+models, migrations, queries, relations, and the contrib apps.
 
 Features
 --------
 
-- Django ORM support for CRUD, relations, and the standard contrib apps
-- Support for most standard Django field types (see the support matrix)
-- Emulated UPSERT operation via ``YDBManager``
-- Migrations support with YDB-specific limitations
+- Django ORM for CRUD, relations, and the standard contrib apps (admin, auth,
+  sessions)
+- Most built-in Django field types (see :doc:`Fields <FIELDS>`)
+- Migrations with YDB-specific adaptations
+- Native, race-free ``UPSERT`` via ``YDBManager``
 - Multiple authentication methods
 
-What is supported, best-effort, unsupported, or not yet evaluated is defined in
-the :doc:`support contract <SUPPORT>` — the single source of truth, with
-compatibility matrices for fields, relations, constraints, indexes,
-transactions, migrations, ORM features, introspection, Admin/Auth, and UPSERT.
-
-Quick Start
+Quick start
 -----------
 
-Installation
-~~~~~~~~~~~~
+Install
+~~~~~~~
 
 .. code-block:: bash
 
    pip install django-ydb-backend
 
-Configuration
-~~~~~~~~~~~~~
+Configure
+~~~~~~~~~
 
-Add YDB to your Django settings:
+Point a Django database at YDB in ``settings.py``:
 
 .. code-block:: python
 
    DATABASES = {
        "default": {
-           "NAME": "ydb_db",
            "ENGINE": "ydb_backend.backend",
+           "NAME": "ydb_db",
            "HOST": "localhost",
            "PORT": "2136",
            "DATABASE": "/local",
        }
    }
+
+See :doc:`Configuration <CONFIGURATIONS>` for the available authentication
+methods.
+
+Define a model
+~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from django.db import models
+
+   class Product(models.Model):
+       sku = models.CharField(max_length=20, primary_key=True)
+       name = models.CharField(max_length=100)
+       price = models.IntegerField()
+
+Give every model at least one non-primary-key field — YDB cannot insert a row
+whose only column is an auto-generated primary key.
+
+Migrate and query
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   python manage.py makemigrations
+   python manage.py migrate
+
+.. code-block:: python
+
+   Product.objects.create(sku="A1", name="Widget", price=9)
+   Product.objects.filter(price__lt=10)
+   Product.objects.get(sku="A1")
+
+Before you go to production
+---------------------------
+
+YDB differs from PostgreSQL/MySQL in a few ways that affect application design:
+
+- It does **not** enforce foreign keys, uniqueness, or check constraints —
+  enforce these in application code.
+- It has **no savepoints**: nested ``atomic()`` rollback and Django's
+  ``TestCase`` do not work — use ``TransactionTestCase`` for database tests.
+- **Primary-key-only and multi-table-inheritance models cannot be inserted.**
+
+See :doc:`Compatibility and limitations <SUPPORT>` for the full list and the
+supported version matrix.
 
 Documentation
 -------------
@@ -51,15 +95,14 @@ Documentation
    :maxdepth: 2
    :caption: Contents
 
-   SUPPORT
    CONFIGURATIONS
    FIELDS
    MIGRATIONS
-   CONTRIB
    OPERATIONS
    TRANSACTIONS
    RETRIES
-
+   CONTRIB
+   SUPPORT
 
 Indices and tables
 ------------------

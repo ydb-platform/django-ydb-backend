@@ -1,14 +1,22 @@
 Django Admin, Auth, and contrib apps
 ===
 
-> See the [support contract](SUPPORT.md#admin-auth--contrib-apps) for the
-> at-a-glance support matrix. This page explains the behavior in detail.
-
 The standard Django contrib applications — `django.contrib.admin`,
 `django.contrib.auth`, `django.contrib.contenttypes`, and
 `django.contrib.sessions` — run on YDB **with documented limitations**. They
 migrate and operate at the ORM level, but the relational guarantees these apps
 normally lean on are enforced by the application, not the database.
+
+## Support at a glance
+
+| Workflow | Status | Notes |
+|----------|:------:|-------|
+| `migrate` for `admin` / `auth` / `contenttypes` / `sessions` | ✅ | Unenforceable constraints are skipped with a warning. |
+| Create users and superusers, password checks | ✅ | |
+| Groups, permissions, `User.groups` / `user_permissions` M2M | ✅ | |
+| Session create / load / delete | ✅ | |
+| Admin login and model changelists | ✅ | |
+| Unique usernames / M2M-pair uniqueness | ❌ | Not enforced by YDB. Django's `validate_unique()` still runs at the ORM level; rely on application logic. |
 
 ## Supported workflows
 
@@ -20,9 +28,6 @@ normally lean on are enforced by the application, not the database.
   `User.user_permissions`, and `Group.permissions` many-to-many relations.
 - Session create/load/delete round trips.
 - Admin login and model changelists (for example `/admin/auth/user/`).
-
-These workflows are covered by the smoke tests in
-`tests/django_contrib/test_smoke.py`.
 
 ## How relations are stored
 
