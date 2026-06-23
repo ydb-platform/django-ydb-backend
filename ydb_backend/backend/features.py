@@ -440,7 +440,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "extra_regress.tests.ExtraRegressTests.test_regression_8039",
             "ordering.tests.OrderingTests.test_order_by_constant_value",
             "ordering.tests.OrderingTests.test_orders_nulls_first_on_filtered_subquery",
-            "ordering.tests.OrderingTests.test_random_ordering",
         },
         # --- Django 5.2/6.0-only failures (#72 cross-version triage). ---
         "Multi-table-inheritance saves run as TransactionTestCase (YDB has no "

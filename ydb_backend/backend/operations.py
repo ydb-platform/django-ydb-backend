@@ -6,6 +6,7 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.models.functions import Lower
 from django.db.models.functions import Now
 from django.db.models.functions import Pi
+from django.db.models.functions import Random
 from django.db.models.functions import Substr
 from django.db.models.functions import Upper
 from django.db.models.lookups import PatternLookup
@@ -52,6 +53,24 @@ def _pi_as_ydb(self, compiler, connection, **extra_context):
 
 
 Pi.as_ydb = _pi_as_ydb
+
+
+def _random_as_ydb(self, compiler, connection, **extra_context):
+    # YQL has no zero-argument RANDOM() (Random's default template emits
+    # "RANDOM()", which YDB rejects with "requires at least 1 arguments").
+    # YQL's Random(args) returns a Double in [0, 1) keyed by its arguments;
+    # anchor it on CurrentUtcTimestamp() so the value changes per query run.
+    # (Ordering by '?' needs a per-row anchor instead and is handled in the
+    # compiler's get_order_by, since a query-constant random cannot be ordered.)
+    return self.as_sql(
+        compiler,
+        connection,
+        template="Random(CurrentUtcTimestamp())",
+        **extra_context,
+    )
+
+
+Random.as_ydb = _random_as_ydb
 
 
 def _upper_as_ydb(self, compiler, connection, **extra_context):

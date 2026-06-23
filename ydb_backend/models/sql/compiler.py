@@ -14,7 +14,9 @@ from django.db import DatabaseError
 from django.db import IntegrityError
 from django.db import NotSupportedError
 from django.db import models
+from django.db.models.expressions import Col
 from django.db.models.expressions import RawSQL
+from django.db.models.functions import Random
 from django.db.models.lookups import Lookup
 from django.db.models.sql import compiler
 from django.db.models.sql.compiler import SQLAggregateCompiler
@@ -388,6 +390,16 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
         fixed = []
         for resolved, (o_sql, o_params, is_ref) in result:
             expr = getattr(resolved, "expression", None)
+            # order_by("?") compiles to OrderBy(Random()). YQL's Random is keyed
+            # by its arguments, so the scalar mapping (Random(CurrentUtcTimestamp())
+            # in operations) is a query-constant and "ORDER BY <constant>" is
+            # rejected. Re-anchor on the primary key so each row gets a distinct
+            # value, keeping CurrentUtcTimestamp() so the shuffle varies per run.
+            if isinstance(expr, Random):
+                anchor_sql, anchor_params = self._random_order_anchor()
+                entry_sql = f"Random({anchor_sql}, CurrentUtcTimestamp())"
+                fixed.append((resolved, (entry_sql, anchor_params, False)))
+                continue
             is_position_ref = (
                 expr is not None
                 and hasattr(expr, "ordinal")
@@ -429,6 +441,13 @@ class SQLCompiler(_ParamTypingMixin, SQLCompiler):
                     entry_is_ref = True
             fixed.append((resolved, (entry_sql, entry_params, entry_is_ref)))
         return fixed
+
+    def _random_order_anchor(self):
+        # Compile the primary-key column to use as a per-row anchor for a random
+        # ORDER BY (see get_order_by); a query-constant random cannot be ordered.
+        pk = self.query.get_meta().pk
+        alias = self.query.get_initial_alias()
+        return self.compile(Col(alias, pk))
 
     def as_sql(self, with_limits=True, with_col_aliases=False):
         """
