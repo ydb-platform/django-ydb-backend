@@ -3,20 +3,6 @@ Transactions
 
 The backend maps Django's transaction API onto YDB's interactive transactions.
 
-## Support at a glance
-
-| Feature | Status | Notes |
-|---------|:------:|-------|
-| `transaction.atomic()` commit / rollback | ✅ | The body runs in a YDB interactive transaction; commit on clean exit, rollback on exception. |
-| Autocommit (outside `atomic()`) | ✅ | Each statement is its own transaction; the driver auto-retries transient errors. |
-| `SERIALIZABLE` isolation | ✅ | Optimistic concurrency; conflicts surface as `OperationalError`. |
-| Savepoints | ❌ | YDB has no savepoints (see below). |
-| Nested `atomic()` with rollback of the inner block | ❌ | Without savepoints, catching an exception inside a nested block poisons the whole transaction. |
-| Django `TestCase` | ❌ | Relies on savepoints — use `TransactionTestCase`. |
-| DDL inside `atomic()` | ❌ | YDB cannot roll back schema changes; migrations run non-atomically. |
-| Automatic retry of `atomic()` blocks | ❌ | Application responsibility — see [Retries](RETRIES.md). |
-| `select_for_update()` (row locking) | ❌ | A no-op — YDB has no pessimistic locks (optimistic concurrency); see below. |
-
 ## What is supported
 
 - **`transaction.atomic()`** — the body runs in an interactive transaction.

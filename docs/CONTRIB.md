@@ -7,17 +7,6 @@ The standard Django contrib applications — `django.contrib.admin`,
 migrate and operate at the ORM level, but the relational guarantees these apps
 normally lean on are enforced by the application, not the database.
 
-## Support at a glance
-
-| Workflow | Status | Notes |
-|----------|:------:|-------|
-| `migrate` for `admin` / `auth` / `contenttypes` / `sessions` | ✅ | Unenforceable constraints are skipped with a warning. |
-| Create users and superusers, password checks | ✅ | |
-| Groups, permissions, `User.groups` / `user_permissions` M2M | ✅ | |
-| Session create / load / delete | ✅ | |
-| Admin login and model changelists | ✅ | |
-| Unique usernames / M2M-pair uniqueness | ❌ | Not enforced by YDB. Django's `validate_unique()` still runs at the ORM level; rely on application logic. |
-
 ## Supported workflows
 
 - `python manage.py migrate` for `admin`, `auth`, `contenttypes`, and
@@ -33,10 +22,7 @@ normally lean on are enforced by the application, not the database.
 
 Relationship fields (`ForeignKey`, `OneToOneField`, `ManyToManyField`) are
 stored as plain scalar `<name>_id` columns typed from the **target's primary
-key**. No `FOREIGN KEY`, `REFERENCES`, or `ON DELETE` SQL is emitted. Querying a
-relation by its scalar column — for example the
-`Permission.objects.filter(content_type__in=...)` that Django runs after every
-migrate — works because the parameter is typed from the related primary key.
+key**. No `FOREIGN KEY`, `REFERENCES`, or `ON DELETE` SQL is emitted.
 
 Auto-created many-to-many through tables (such as `auth_user_groups`) are
 created as ordinary YDB tables, so add/list/remove through the ORM works.
@@ -52,7 +38,3 @@ YDB does not enforce these, so the application must:
   usernames and unique M2M pairs) are not enforced; rely on
   `Model.full_clean()` / `validate_unique()` and application logic. See
   [MIGRATIONS](MIGRATIONS.md) for how uniqueness is handled during migrate.
-
-Nullable relationship and scalar columns round-trip correctly: an optional
-`ForeignKey` stores either an id or `NULL`, and optional Django fields such as
-`auth_user.last_login` are created nullable on a clean schema.

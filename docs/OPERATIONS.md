@@ -5,13 +5,16 @@ The backend compiles the Django ORM into YDB's YQL dialect, adapting to the
 features of a distributed database. This page covers query support, query
 parameters, and UPSERT.
 
-## ORM query features at a glance
+## ORM query features
+
+Legend: ✅ supported · 🟡 works with caveats (see the note) · ❌ unsupported or
+not enforced by YDB.
 
 | Feature | Status | Notes |
 |---------|:------:|-------|
 | CRUD (`create` / `get` / `filter` / `update` / `delete`) | ✅ | |
 | Most field lookups | ✅ | `exact`, `in`, ranges, `icontains`, date extraction (`week_day` / `week` / `quarter` / …), and more. |
-| Backslash / `%` / `_` escaping in pattern and exact lookups | ✅ | Escaped correctly. `Substr()` on a text column works; a pattern lookup whose right-hand side is a *nullable* expression is not yet supported. |
+| Backslash / `%` / `_` escaping in pattern and exact lookups | ✅ | `Substr()` on a text column works; a pattern lookup whose right-hand side is a *nullable* expression is not yet supported. |
 | Built-in scalar functions | ✅ | `Pi()`, `Random()`, `Now()` / `CURRENT_TIMESTAMP`, `Upper`, `Lower`, `Substr`, etc. map to YQL built-ins. |
 | Coercing lookups (`int`-as-`str`, `date`-as-`str`), regex on NULL / non-string | ❌ | Raise during parameter handling. |
 | Correlated subqueries (`Exists` / `Subquery` / `OuterRef`) | ❌ | YDB cannot resolve the outer reference. Non-correlated subqueries work. |
@@ -25,20 +28,17 @@ parameters, and UPSERT.
 | `F()`, `Case` / `When` | ✅ | |
 | Window functions (`OVER`) | ✅ | Supports `ROWS BETWEEN N PRECEDING / FOLLOWING`. |
 | `RANGE BETWEEN N PRECEDING …` (bounded offsets) | ❌ | Only unbounded `PRECEDING` / `FOLLOWING` are supported. |
-| `select_for_update()` | ❌ | A no-op — YDB has no row locking (optimistic concurrency). See [Transactions](TRANSACTIONS.md#row-locking-select-for-update). |
+| `select_for_update()` | ❌ | A no-op — YDB has no row locking (optimistic concurrency). See [Transactions](TRANSACTIONS.md). |
 | Insert into a primary-key-only / multi-table-inheritance table | ❌ | Raises `NotSupportedError` — see [Compatibility](SUPPORT.md). |
 | `ignore_conflicts=True` | ❌ | Not supported. Use UPSERT (below) for race-free writes keyed on the primary key. |
 
 ## Query parameters
 
-YDB requires typed query parameters. The backend types each parameter from the
-Django expression that produced it — a lookup's value is typed from the
-left-hand side's field, and nested expressions and subqueries from their own
-compilation — rather than by inspecting the generated SQL. A parameter whose
-type cannot be resolved is typed from its Python value.
-
-This covers joins, foreign-key filters, `__in`, `F()`, `Case` / `When`,
-annotations, aggregate (`HAVING`) filters, and non-correlated subqueries.
+YDB requires typed query parameters. The backend infers each parameter's type
+from the query that produced it (the field being filtered, the expression, the
+related key), so joins, foreign-key filters, `__in`, `F()`, `Case` / `When`,
+annotations, aggregate (`HAVING`) filters, and non-correlated subqueries all
+work.
 
 ## Correlated subqueries
 
@@ -53,12 +53,6 @@ row is inserted, and an existing row has the written columns overwritten while
 its other columns are preserved. The backend uses YDB's native `UPSERT INTO`,
 which runs as a **single atomic statement** — there is no read-modify-write
 step, so concurrent upserts of the same key cannot create duplicates.
-
-| Aspect | Status | Notes |
-|--------|:------:|-------|
-| `YDBManager.upsert()` / `bulk_upsert()` | ✅ | One native `UPSERT INTO` statement; no read-modify-write and no race window. |
-| Conflict target | ✅ (primary key only) | UPSERT is keyed on the primary key; `conflict_target` defaults to it, and any other target raises `NotSupportedError`. |
-| `update_fields` (write a subset of columns) | 🟡 | Restricts the written columns; omitted columns are preserved. YDB requires every NOT NULL column to be present, so `update_fields` may only drop nullable columns. |
 
 ### Manager setup
 
