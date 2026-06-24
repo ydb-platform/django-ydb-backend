@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Bookstore — books{% endblock %}
+
+{% block content %}
+  <h1>Books</h1>
+  <p class="muted">
+    A Django app on the YDB backend. Add a book below — it is written to YDB
+    through the ORM (a new author and category are created on the fly).
+  </p>
+
+  <div class="card">
+    <h2>Add a book</h2>
+    <form class="add" method="post">
+      {% csrf_token %}
+      <label class="full">Title<input name="title" required></label>
+      <label>Author<input name="author" required></label>
+      <label>Category<input name="category" placeholder="optional"></label>
+      <label>Price<input name="price" type="number" value="0" min="0"></label>
+      <label>Quantity<input name="quantity" type="number" value="0" min="0"></label>
+      <div class="full"><button type="submit">Add book</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>{{ books|length }} book{{ books|length|pluralize }}</h2>
+    {% if books %}
+      <table>
+        <thead>
+          <tr><th>Title</th><th>Author</th><th>Categories</th><th>Price</th><th>Qty</th></tr>
+        </thead>
+        <tbody>
+          {% for book in books %}
+            <tr>
+              <td>{{ book.title }}</td>
+              <td>{{ book.author.name }}</td>
+              <td>
+                {% for category in book.categories.all %}
+                  <span class="tag">{{ category.name }}</span>
+                {% endfor %}
+              </td>
+              <td>{{ book.price }}</td>
+              <td>{{ book.quantity }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">No books yet — add the first one above.</div>
+    {% endif %}
+  </div>
+{% endblock %}

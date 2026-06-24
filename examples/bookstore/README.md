@@ -8,6 +8,8 @@ admin, and an authenticated API — working end to end on YDB.
 
 What it exercises:
 
+- **A server-rendered page** — a styled book list with a form to add books
+  (plain Django templates + ORM), at `/`.
 - **auth + admin** — users, groups, permissions, and the Django admin site.
 - **Relations** — `Book → Author` (ForeignKey) and `Book ↔ Category`
   (ManyToMany, via an auto-created through table).
@@ -83,8 +85,14 @@ poetry run python manage.py createsuperuser
 poetry run python manage.py runserver
 ```
 
-- Admin:         http://127.0.0.1:8000/admin/
-- Browsable API: http://127.0.0.1:8000/api/
+- Home (book list + add form): http://127.0.0.1:8000/
+- About (a flat page):         http://127.0.0.1:8000/about/
+- Admin:                       http://127.0.0.1:8000/admin/
+- Browsable API:              http://127.0.0.1:8000/api/
+
+The home page is a plain server-rendered Django view: it lists the books and has
+a form that adds one (creating the author and category on the fly), alongside the
+REST API below.
 
 ## API walkthrough
 

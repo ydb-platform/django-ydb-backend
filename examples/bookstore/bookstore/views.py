@@ -1,3 +1,5 @@
+from django.shortcuts import redirect
+from django.shortcuts import render
 from rest_framework import filters
 from rest_framework import permissions
 from rest_framework import viewsets
@@ -8,6 +10,42 @@ from .models import Category
 from .serializers import AuthorSerializer
 from .serializers import BookSerializer
 from .serializers import CategorySerializer
+
+
+def _to_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def book_list(request):
+    """A small server-rendered page: list the books and add one via a form.
+
+    A plain Django view (template + ORM) alongside the REST API, to show the
+    traditional request/response path working on YDB. Adding a book creates the
+    author (and an optional category) on the fly.
+    """
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        author_name = request.POST.get("author", "").strip()
+        if title and author_name:
+            author, _ = Author.objects.get_or_create(name=author_name)
+            book = Book.objects.create(
+                title=title,
+                author=author,
+                price=_to_int(request.POST.get("price")),
+                quantity=_to_int(request.POST.get("quantity")),
+                owner=request.user if request.user.is_authenticated else None,
+            )
+            category_name = request.POST.get("category", "").strip()
+            if category_name:
+                category, _ = Category.objects.get_or_create(name=category_name)
+                book.categories.add(category)
+        return redirect("book_list")
+
+    books = Book.objects.select_related("author").prefetch_related("categories")
+    return render(request, "bookstore/book_list.html", {"books": books})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
