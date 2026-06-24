@@ -2,27 +2,11 @@ Compatibility and limitations
 ===
 
 YDB is a distributed database and does not behave exactly like PostgreSQL or
-MySQL. This page is the high-level overview — the support legend, the supported
-versions, and the handful of limitations worth knowing before you build on the
-backend. Per-topic detail lives in [Fields](FIELDS.md),
-[Migrations](MIGRATIONS.md), [Operations](OPERATIONS.md),
-[Transactions](TRANSACTIONS.md), and [Admin, Auth & contrib](CONTRIB.md).
-
-## Support levels
-
-The topic pages mark each feature with one of:
-
-| Level | Meaning |
-|-------|---------|
-| ✅ **Supported** | Works as documented. Safe to rely on within the stated caveats. |
-| 🟡 **Best-effort** | Works, but with a documented caveat (partial coverage, an edge case, reduced precision). Read the note first. |
-| ❌ **Unsupported** | Does not work, or the database does not enforce it. The backend either raises a clear error or accepts an ORM declaration that YDB never guarantees. |
-
-**Database-enforced guarantees are credited only when YDB itself enforces
-them.** Foreign keys, uniqueness, and check constraints are *not* enforced by
-YDB, so they are marked ❌ even though the ORM still accepts the declaration. You
-can reimplement them in application code (`validate_unique()`, `clean()`,
-validators), but that is the application's responsibility.
+MySQL. This page is the high-level overview — the supported versions and the
+handful of limitations worth knowing before you build on the backend. Per-topic
+detail lives in [Fields](FIELDS.md), [Migrations](MIGRATIONS.md),
+[Operations](OPERATIONS.md), [Transactions](TRANSACTIONS.md), and
+[Admin, Auth & contrib](CONTRIB.md).
 
 ## Supported versions
 

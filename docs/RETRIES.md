@@ -53,8 +53,7 @@ A failing call is **unwrapped back to its `ydb.issues.*` cause** and handed to
 the SDK's own `ydb.retry_operation_sync`. This means the set of retriable
 errors, the idempotency rules and the backoff schedule all come **straight from
 the SDK** — when the SDK updates its retry policy, this helper inherits it with
-no changes here. Nothing about YDB's error classification is duplicated in the
-backend.
+no changes here.
 
 - A **non-retriable** error (e.g. a constraint or query error) and **running out
   of retries** re-raise the **original Django exception** (`OperationalError`,
@@ -155,8 +154,6 @@ connection_created.connect(_install)
 # ...and pass the same settings to retry_ydb_errors/retry_ydb_operation to count
 # transaction retries too.
 ```
-
-This is how the SLO workload reports `sdk_retry_attempts_total`.
 
 ## What not to wrap
 
