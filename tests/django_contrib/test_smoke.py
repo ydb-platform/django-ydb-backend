@@ -186,3 +186,30 @@ class TestAdminAuthRelations(TransactionTestCase):
 
         self.assertTrue(null_ok["last_login"])
         self.assertFalse(null_ok["username"])
+
+
+class TestAdminWrites(TransactionTestCase):
+    databases = {"default"}
+
+    def test_admin_create_change_delete_via_forms(self):
+        # The admin write path (ModelForm POSTs) works end to end on YDB, using
+        # the built-in Group admin (add / change / delete).
+        User.objects.create_superuser("admin", "admin@example.com", "secret")
+        client = Client()
+        client.login(username="admin", password="secret")
+
+        add = client.post(
+            "/admin/auth/group/add/", {"name": "editors", "_save": "Save"}
+        )
+        self.assertIn(add.status_code, (200, 302))
+        group = Group.objects.get(name="editors")
+
+        client.post(
+            f"/admin/auth/group/{group.pk}/change/",
+            {"name": "writers", "_save": "Save"},
+        )
+        group.refresh_from_db()
+        self.assertEqual(group.name, "writers")
+
+        client.post(f"/admin/auth/group/{group.pk}/delete/", {"post": "yes"})
+        self.assertFalse(Group.objects.filter(pk=group.pk).exists())
