@@ -25,7 +25,7 @@ parameters, and UPSERT.
 | `F()`, `Case` / `When` | ✅ | |
 | Window functions (`OVER`) | ✅ | Supports `ROWS BETWEEN N PRECEDING / FOLLOWING`. |
 | `RANGE BETWEEN N PRECEDING …` (bounded offsets) | ❌ | Only unbounded `PRECEDING` / `FOLLOWING` are supported. |
-| `select_for_update(..., limit=...)` | ❌ | Not supported with a limit. |
+| `select_for_update()` | ❌ | A no-op — YDB has no row locking (optimistic concurrency). See [Transactions](TRANSACTIONS.md#row-locking-select-for-update). |
 | Insert into a primary-key-only / multi-table-inheritance table | ❌ | Raises `NotSupportedError` — see [Compatibility](SUPPORT.md). |
 | `ignore_conflicts=True` | ❌ | Not supported. Use UPSERT (below) for race-free writes keyed on the primary key. |
 

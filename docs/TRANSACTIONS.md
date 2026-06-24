@@ -15,6 +15,7 @@ The backend maps Django's transaction API onto YDB's interactive transactions.
 | Django `TestCase` | ❌ | Relies on savepoints — use `TransactionTestCase`. |
 | DDL inside `atomic()` | ❌ | YDB cannot roll back schema changes; migrations run non-atomically. |
 | Automatic retry of `atomic()` blocks | ❌ | Application responsibility — see [Retries](RETRIES.md). |
+| `select_for_update()` (row locking) | ❌ | A no-op — YDB has no pessimistic locks (optimistic concurrency); see below. |
 
 ## What is supported
 
@@ -43,6 +44,30 @@ The backend maps Django's transaction API onto YDB's interactive transactions.
 - **DDL inside `atomic()`.** YDB cannot roll back schema changes, so running DDL
   inside an `atomic()` block raises `TransactionManagementError`. Migrations are
   applied non-atomically for the same reason.
+
+## Row locking (`select_for_update`)
+
+YDB has no pessimistic row locks and no `SELECT ... FOR UPDATE` (YQL rejects the
+syntax), so `QuerySet.select_for_update()` is a **no-op**: it runs as a plain
+`SELECT` and neither locks nor raises (`has_select_for_update = False`, like
+SQLite). You do not lose serialization safety, though — YDB uses optimistic
+concurrency, so a read-modify-write inside `transaction.atomic()` already takes
+optimistic locks on the rows it reads, and a conflicting concurrent write makes
+the **commit** fail with `OperationalError` ("Transaction locks invalidated").
+Re-run the block on conflict instead of locking up front — wrap it with the
+retry helper:
+
+```python
+from django.db import transaction
+from ydb_backend.retry import retry_ydb_errors
+
+@retry_ydb_errors(idempotent=True)
+def reserve_stock(product_id):
+    with transaction.atomic():
+        product = Product.objects.get(pk=product_id)  # optimistically locked
+        product.stock -= 1
+        product.save()
+```
 
 ## Retries and conflicts
 

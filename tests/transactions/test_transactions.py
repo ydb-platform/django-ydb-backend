@@ -61,3 +61,40 @@ class TestAtomic(TransactionTestCase):
         with self.assertRaises(TransactionManagementError), transaction.atomic(), \
                 connection.schema_editor() as editor:
             editor.create_model(TxItem)
+
+
+class TestOnCommit(TransactionTestCase):
+    databases = {"default"}
+
+    def test_runs_after_commit(self):
+        fired = []
+        with transaction.atomic():
+            TxItem.objects.create(name="oc")
+            transaction.on_commit(lambda: fired.append("committed"))
+            # The hook has not run yet — still inside the atomic block.
+            self.assertEqual(fired, [])
+        self.assertEqual(fired, ["committed"])
+
+    def test_skipped_on_rollback(self):
+        fired = []
+        with self.assertRaises(ValueError), transaction.atomic():
+            transaction.on_commit(lambda: fired.append("committed"))
+            raise ValueError
+        self.assertEqual(fired, [])
+
+
+class TestSelectForUpdate(TransactionTestCase):
+    databases = {"default"}
+
+    def test_select_for_update_is_a_noop(self):
+        # YDB uses optimistic concurrency and reports has_select_for_update =
+        # False (like SQLite), so select_for_update() runs as a plain SELECT: it
+        # neither locks nor raises. Serialize with ydb_backend.retry instead.
+        self.assertFalse(connection.features.has_select_for_update)
+        TxItem.objects.create(name="sfu")
+        with transaction.atomic():
+            rows = list(TxItem.objects.select_for_update().filter(name="sfu"))
+        self.assertEqual(len(rows), 1)
+        self.assertNotIn(
+            "FOR UPDATE", str(TxItem.objects.select_for_update().query).upper()
+        )
