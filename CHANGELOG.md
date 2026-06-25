@@ -1,3 +1,4 @@
+* feat: configurable transaction isolation level via `OPTIONS["isolation_level"]`
 * docs: clarify that `select_for_update()` does not lock — YDB uses optimistic concurrency; retry on conflict instead
 * docs: restructure the docs — add a quick start, move the support tables into each topic page, slim the compatibility page, and source the docs version from the package
 * feat: native YDB `UPSERT INTO` for `YDBManager`

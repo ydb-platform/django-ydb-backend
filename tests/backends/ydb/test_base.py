@@ -106,6 +106,15 @@ class TestConnectionParams(SimpleTestCase):
             IsolationLevel.ONLINE_READONLY_INCONSISTENT,
         )
 
+    def test_isolation_level_accepts_enum_instance(self):
+        params = self.params(
+            HOST="localhost",
+            PORT="2136",
+            DATABASE="/local",
+            OPTIONS={"isolation_level": IsolationLevel.STALE_READONLY},
+        )
+        self.assertEqual(params["isolation_level"], IsolationLevel.STALE_READONLY)
+
     def test_unknown_isolation_level_raises(self):
         with self.assertRaisesMessage(ImproperlyConfigured, "isolation_level"):
             self.params(
