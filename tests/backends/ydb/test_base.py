@@ -4,7 +4,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.db.utils import NotSupportedError
 from django.test import SimpleTestCase
+from ydb_backend.backend import base
 from ydb_backend.backend.base import DatabaseWrapper
+from ydb_dbapi import IsolationLevel
 
 
 class TestDatabaseWrapper(SimpleTestCase):
@@ -70,8 +72,80 @@ class TestConnectionParams(SimpleTestCase):
         self.assertEqual(params["credentials"], "token")
         self.assertEqual(params["root_certificates_path"], "/certs/ca.pem")
 
+    def test_no_isolation_level_by_default(self):
+        params = self.params(HOST="localhost", PORT="2136", DATABASE="/local")
+        self.assertNotIn("isolation_level", params)
+
+    def test_isolation_level_mapped_to_enum(self):
+        params = self.params(
+            HOST="localhost",
+            PORT="2136",
+            DATABASE="/local",
+            OPTIONS={"isolation_level": "snapshot readonly"},
+        )
+        self.assertEqual(params["isolation_level"], IsolationLevel.SNAPSHOT_READONLY)
+
+    def test_isolation_level_normalization_is_lenient(self):
+        for value in ("SERIALIZABLE", "serializable", "Serializable"):
+            params = self.params(
+                HOST="localhost",
+                PORT="2136",
+                DATABASE="/local",
+                OPTIONS={"isolation_level": value},
+            )
+            self.assertEqual(params["isolation_level"], IsolationLevel.SERIALIZABLE)
+        # Enum member spelling (underscores) is accepted too.
+        params = self.params(
+            HOST="localhost",
+            PORT="2136",
+            DATABASE="/local",
+            OPTIONS={"isolation_level": "online_readonly_inconsistent"},
+        )
+        self.assertEqual(
+            params["isolation_level"],
+            IsolationLevel.ONLINE_READONLY_INCONSISTENT,
+        )
+
+    def test_unknown_isolation_level_raises(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "isolation_level"):
+            self.params(
+                HOST="localhost",
+                PORT="2136",
+                DATABASE="/local",
+                OPTIONS={"isolation_level": "repeatable read"},
+            )
+
     def test_is_usable_false_without_connection(self):
         self.assertFalse(DatabaseWrapper.is_usable(SimpleNamespace(connection=None)))
+
+
+class TestNewConnectionIsolationLevel(SimpleTestCase):
+    def test_isolation_level_applied_and_not_forwarded_to_connect(self):
+        recorded = {}
+
+        class FakeConnection:
+            def set_isolation_level(self, level):
+                recorded["level"] = level
+
+        def fake_connect(**kwargs):
+            recorded["connect_kwargs"] = kwargs
+            return FakeConnection()
+
+        conn_params = {
+            "host": "localhost",
+            "port": "2136",
+            "database": "/local",
+            "isolation_level": IsolationLevel.SNAPSHOT_READONLY,
+        }
+        original_connect = base.Database.connect
+        base.Database.connect = fake_connect
+        try:
+            DatabaseWrapper.get_new_connection(SimpleNamespace(), conn_params)
+        finally:
+            base.Database.connect = original_connect
+
+        self.assertEqual(recorded["level"], IsolationLevel.SNAPSHOT_READONLY)
+        self.assertNotIn("isolation_level", recorded["connect_kwargs"])
 
 
 class TestDatabaseVersion(SimpleTestCase):

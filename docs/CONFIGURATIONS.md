@@ -2,7 +2,8 @@ Configurations
 ===
 
 To use the YDB backend you only need to adjust a few of Django's built-in
-database settings — there are no extra YDB-specific configuration options.
+database settings. The single YDB-specific knob is the transaction isolation
+level, set through `OPTIONS` (see below).
 
 ### DATABASES
 
@@ -23,6 +24,42 @@ database settings — there are no extra YDB-specific configuration options.
      }
  }
  ```
+
+### OPTIONS
+
+`OPTIONS` is a dict forwarded to the YDB driver. The backend reads one key,
+`isolation_level`, and passes the rest through to `ydb_dbapi.connect`.
+
+- `isolation_level` (optional): the transaction mode applied to every
+  transaction on the connection. Given as a case-insensitive string; defaults
+  to `"serializable"`. An unknown value raises `ImproperlyConfigured`.
+
+| Value | Reads | Writes |
+|---|---|---|
+| `"serializable"` (default) — interactive, serializable read-write | yes | yes |
+| `"snapshot readonly"` — consistent snapshot | yes | no |
+| `"online readonly"` — latest committed data | yes | no |
+| `"online readonly inconsistent"` — latest data, reads may be inconsistent | yes | no |
+| `"stale readonly"` — possibly stale replica reads (cheapest) | yes | no |
+
+YDB permits writes only under the serializable read-write mode, so the
+read-only modes suit read-only workloads (reporting, analytics): any write —
+`INSERT`/`UPDATE`/`DELETE`, and migrations — is rejected by YDB. Use a
+read-only mode only on a connection you query for reads only, e.g. a second
+`DATABASES` alias pointed at the same database. (The full set of accepted
+values mirrors `ydb_dbapi`'s isolation levels.)
+
+```python
+DATABASES = {
+    "default": {
+        "ENGINE": "ydb_backend.backend",
+        "HOST": "localhost",
+        "PORT": "2136",
+        "DATABASE": "/local",
+        "OPTIONS": {"isolation_level": "serializable"},
+    }
+}
+```
 
 ### Authentication Methods
 

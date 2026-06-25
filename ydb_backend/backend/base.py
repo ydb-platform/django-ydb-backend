@@ -35,6 +35,31 @@ from .schema import DatabaseSchemaEditor
 from .validation import DatabaseValidation
 
 
+def _normalize_isolation_level(value):
+    """
+    Map a ``DATABASES["OPTIONS"]["isolation_level"]`` setting to a ydb_dbapi
+    ``IsolationLevel``.
+
+    The level is given as a case-insensitive string (e.g. ``"serializable"`` or
+    ``"snapshot readonly"``); underscores are treated as spaces so the enum
+    member spelling works too. Raise ``ImproperlyConfigured`` for an unknown
+    level so misconfiguration fails fast at connect time.
+    """
+    levels = Database.IsolationLevel
+    if isinstance(value, levels):
+        return value
+    normalized = " ".join(str(value).upper().replace("_", " ").split())
+    try:
+        return levels(normalized)
+    except ValueError:
+        allowed = ", ".join(sorted(level.value.lower() for level in levels))
+        msg = (
+            f"Unknown isolation_level {value!r} in DATABASES OPTIONS for the "
+            f"YDB backend. Supported values: {allowed}."
+        )
+        raise ImproperlyConfigured(msg) from None
+
+
 class DatabaseWrapper(BaseDatabaseWrapper):
     """
     Represent a database connection.
@@ -77,7 +102,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "UUIDField": "UUID",
         "JSONField": "Json",
         "EnumField": "Enum",
-
         # TODO: Add validation for string related fields
         # FileField/ImageField store a text path, not raw bytes, so Utf8.
         "FileField": "Utf8",
@@ -236,13 +260,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 "YDB database is not configured. Set 'DATABASE' in DATABASES."
             )
 
+        options = dict(settings_dict.get("OPTIONS", {}))
+        isolation_level = options.pop("isolation_level", None)
+
         conn_params = {
             "host": settings_dict["HOST"],
             "port": settings_dict["PORT"],
             "database": settings_dict["DATABASE"],
-            **settings_dict.get("OPTIONS", {}),
+            **options,
         }
 
+        if isolation_level is not None:
+            conn_params["isolation_level"] = _normalize_isolation_level(isolation_level)
         if settings_dict.get("CREDENTIALS"):
             conn_params["credentials"] = settings_dict["CREDENTIALS"]
         if settings_dict.get("ROOT_CERTIFICATES_PATH"):
@@ -256,6 +285,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         """
         Open a connection to the database.
         """
+        isolation_level = conn_params.pop("isolation_level", None)
         try:
             logger.debug(f"Connecting to YDB with params: {conn_params}")
             connection = Database.connect(**conn_params)
@@ -265,6 +295,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             msg = f"Failed to connect to YDB: {e}"
             raise OperationalError(msg) from e
         else:
+            # Set the transaction mode for the connection. ``_set_autocommit``
+            # keeps driving ``interactive_transaction`` from there on, so only
+            # the tx mode needs to persist. Read-only modes (snapshot/online/
+            # stale) accept reads only; writes are rejected by YDB.
+            if isolation_level is not None:
+                connection.set_isolation_level(isolation_level)
             return connection
 
     def create_cursor(self, name=None):

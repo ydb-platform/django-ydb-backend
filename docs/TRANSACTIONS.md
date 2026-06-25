@@ -11,7 +11,10 @@ The backend maps Django's transaction API onto YDB's interactive transactions.
 - **Autocommit** — outside an `atomic()` block every statement is its own
   transaction (the default).
 - The connection stays usable after a rolled-back transaction.
-- The isolation level is `SERIALIZABLE` for interactive transactions.
+- The isolation level is `SERIALIZABLE` for interactive transactions by
+  default. It can be changed per connection with the `isolation_level`
+  `OPTIONS` setting (see [Configurations](CONFIGURATIONS.md)); note that the
+  non-serializable modes are read-only and reject writes.
 
 ## What is not supported
 
