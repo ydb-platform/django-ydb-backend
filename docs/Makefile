@@ -19,13 +19,13 @@ help:
 %: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-# Custom targets for local development with poetry
+# Custom targets for local development with uv
 livehtml:
 	sphinx-autobuild "$(SOURCEDIR)" "$(BUILDDIR)/html" $(SPHINXOPTS) $(O)
 
 clean-all:
 	rm -rf $(BUILDDIR)/*
 
-# Install docs dependencies via poetry
+# Install docs dependencies via uv
 install:
-	cd .. && poetry install --with docs
+	cd .. && uv sync --group docs

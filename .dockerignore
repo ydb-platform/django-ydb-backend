@@ -7,4 +7,4 @@
 docs
 conformance
 examples
-poetry.lock
+uv.lock

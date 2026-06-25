@@ -15,16 +15,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: "3.12"
 
-      - name: Install Poetry
-        run: pip install poetry
-
       - name: Install packages
-        run: poetry install
+        run: uv sync
 
       - name: Run linter
-        run: poetry run ruff check
+        run: uv run ruff check

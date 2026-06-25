@@ -10,10 +10,10 @@ build:
     python: "3.11"
   jobs:
     post_create_environment:
-      - pip install poetry
-      - poetry config virtualenvs.create false
+      - pip install uv
     post_install:
-      - poetry install --only docs --no-interaction
+      # Install the docs dependency group into Read the Docs' active virtualenv.
+      - uv pip install --group docs
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:

@@ -9,31 +9,41 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10,<4"
 dependencies = [
-    "ydb-dbapi (>=0.1.8,<0.2.0)",
-    "django (>=4.2,<7.0)"
+    "ydb-dbapi>=0.1.8,<0.2.0",
+    "django>=4.2,<7.0",
 ]
-
-[tool.poetry]
-packages = [
-    { include = "ydb_backend" },
-]
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.9.9"
-pytest-cov = "<4.0.0"
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-sphinx = "^7.0.0"
-sphinx-rtd-theme = "^2.0.0"
-myst-parser = "^2.0.0"
-sphinx-copybutton = "^0.5.0"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ydb_backend"]
+
+[tool.hatch.build.targets.sdist]
+# Ship the package and the metadata needed to rebuild the wheel — not the
+# whole repo (tests, docs, CI, examples). pyproject.toml is always included.
+include = [
+    "ydb_backend",
+    "README.md",
+    "CHANGELOG.md",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.9,<0.10.0",
+    "pytest-cov<4.0.0",
+]
+docs = [
+    "sphinx>=7.0.0,<8.0.0",
+    "sphinx-rtd-theme>=2.0.0,<3.0.0",
+    "myst-parser>=2.0.0,<3.0.0",
+    "sphinx-copybutton>=0.5.0,<0.6.0",
+]
+# Extra dependencies for the runnable examples/bookstore app (DRF-based UI).
+examples = [
+    "djangorestframework",
+]
 
 [tool.coverage.run]
 # Measure the backend package only; the test suite itself is the harness, not
