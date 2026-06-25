@@ -44,19 +44,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        run: pip install poetry
-
       - name: Install packages
-        run: poetry install
+        run: uv sync
 
       - name: Override Django version
-        run: poetry run pip install "django~=${{ matrix.django-version }}"
+        run: uv pip install "django~=${{ matrix.django-version }}"
 
       - name: Start YDB
         run: docker compose up -d --wait
@@ -64,16 +62,18 @@ jobs:
       - name: Run tests
         # Only instrument under coverage on the designated coverage jobs; the
         # rest run the suite directly to avoid the instrumentation overhead.
+        # --no-sync keeps the Django version pinned above (uv run re-syncs to
+        # the lockfile otherwise).
         run: |
           if [ "${{ matrix.coverage }}" = "true" ]; then
-            poetry run coverage run tests/runtests.py
+            uv run --no-sync coverage run tests/runtests.py
           else
-            poetry run python tests/runtests.py
+            uv run --no-sync python tests/runtests.py
           fi
 
       - name: Generate coverage report
         if: ${{ matrix.coverage }}
-        run: poetry run coverage xml
+        run: uv run --no-sync coverage xml
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.coverage }}
@@ -126,22 +126,20 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        run: pip install poetry
-
       - name: Install packages
-        run: poetry install
+        run: uv sync
 
       - name: Override Django version
         id: django
         run: |
-          poetry run pip install "django~=${{ matrix.django-version }}"
-          version="$(poetry run python -c 'import django; print(django.get_version())')"
+          uv pip install "django~=${{ matrix.django-version }}"
+          version="$(uv run --no-sync python -c 'import django; print(django.get_version())')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Django source tree
@@ -166,7 +164,7 @@ jobs:
           # otherwise clone it lazily, racing across the concurrent groups
           # below on a cache miss.
           src="$GITHUB_WORKSPACE/.django-src"
-          py="$(poetry env info -p)/bin/python"
+          py="$GITHUB_WORKSPACE/.venv/bin/python"
           dj="$("$py" -c 'import django; print(django.get_version())')"
           if [ "$(cat "$src/.version" 2>/dev/null || true)" != "$dj" ]; then
             rm -rf "$src"
@@ -237,8 +235,8 @@ jobs:
         if: always()
         run: |
           # The concurrent groups each wrote a parallel data file ($COVERAGE_FILE.*).
-          poetry run coverage combine || true
-          poetry run coverage xml || true
+          uv run --no-sync coverage combine || true
+          uv run --no-sync coverage xml || true
 
       - name: Upload conformance coverage to Codecov
         if: always()

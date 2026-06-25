@@ -15,7 +15,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-PY="$(poetry env info -p)/bin/python"
+PY="${PY:-$REPO_ROOT/.venv/bin/python}"
 DJ_VERSION="$("$PY" -c 'import django; print(django.get_version())')"
 SRC="$REPO_ROOT/.django-src"
 

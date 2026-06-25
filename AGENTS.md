@@ -6,13 +6,13 @@
 
 ## Build, Test, and Development Commands
 
-- `poetry install --with docs`: install runtime, development, and documentation dependencies.
+- `uv sync --all-groups`: install runtime, development, and documentation dependencies.
 - `docker compose up`: start the local YDB service on ports `2136` and `8765`.
-- `poetry run python tests/runtests.py`: run the full Django test suite against local YDB.
-- `poetry run python tests/runtests.py compiler -v 2 --keepdb`: run one test module group with higher verbosity and preserve the test database.
-- `poetry run ruff check ydb_backend tests`: lint source and tests.
-- `poetry run ruff format ydb_backend tests`: format Python code.
-- `cd docs && poetry run make html`: build Sphinx documentation.
+- `uv run python tests/runtests.py`: run the full Django test suite against local YDB.
+- `uv run python tests/runtests.py compiler -v 2 --keepdb`: run one test module group with higher verbosity and preserve the test database.
+- `uv run ruff check ydb_backend tests`: lint source and tests.
+- `uv run ruff format ydb_backend tests`: format Python code.
+- `cd docs && uv run --group docs make html`: build Sphinx documentation.
 
 ## Coding Style & Naming Conventions
 

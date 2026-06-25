@@ -103,10 +103,14 @@ The full list and the supported version matrix are in
 
 ## Development
 
+This project uses [uv](https://docs.astral.sh/uv/) for dependency and
+environment management (`uv` also provisions the right Python, so a local
+Python install is not required).
+
 ```shell
 git clone https://github.com/ydb-platform/django-ydb-backend.git
 cd django-ydb-backend
 docker compose up -d --wait          # local YDB; requires docker + docker compose
-pip install poetry && poetry install
-poetry run python tests/runtests.py
+uv sync                              # installs uv-managed Python + dependencies
+uv run python tests/runtests.py
 ```

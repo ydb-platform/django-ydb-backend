@@ -31,8 +31,7 @@ What it exercises:
 From the repository root:
 
 ```bash
-poetry install
-poetry run pip install djangorestframework   # only this example needs DRF
+uv sync --group examples   # installs the backend plus DRF (only this example needs DRF)
 ```
 
 ## 2. Start YDB
@@ -49,7 +48,7 @@ example's settings already point at.
 From this directory (`examples/bookstore`):
 
 ```bash
-poetry run python manage.py migrate
+uv run --group examples python manage.py migrate
 ```
 
 ## 4. Run the workload (a quick end-to-end check)
@@ -60,7 +59,7 @@ across the app's models **and** the contrib apps (auth, sessions, sites,
 flatpages, redirects), then cleans up after itself:
 
 ```bash
-poetry run python manage.py workload
+uv run --group examples python manage.py workload
 ```
 
 ```text
@@ -75,14 +74,14 @@ OK — 1 iteration(s), 25 operations, no errors.
 Push more load through it, or keep the created rows, with `--count` / `--keep`:
 
 ```bash
-poetry run python manage.py workload --count 50
+uv run --group examples python manage.py workload --count 50
 ```
 
 ## 5. Run the app
 
 ```bash
-poetry run python manage.py createsuperuser
-poetry run python manage.py runserver
+uv run --group examples python manage.py createsuperuser
+uv run --group examples python manage.py runserver
 ```
 
 - Home (book list + add form): http://127.0.0.1:8000/
